@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Nova Banking",
+    "slug": "nova-banking",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nova-banking",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F2F5FA",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F2F5FA"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nova.banking"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F2F5FA"
+      },
+      "package": "com.nova.banking"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F2F5FA"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

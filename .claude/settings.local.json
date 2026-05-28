@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const p = require\\('./node_modules/expo/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(npm install *)",
+      "Bash(npx expo *)",
+      "Bash(node -e \"const r = require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/react-native-reanimated/package.json'\\); console.log\\(r.version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/nativewind/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\('expo:', require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/expo/package.json'\\).version, '\\\\nexpo-router:', require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/expo-router/package.json'\\).version, '\\\\nreact-native:', require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/react-native/package.json'\\).version, '\\\\nreact:', require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/react/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('/Users/adelineclarissa/BankingApp/frontend/node_modules/react-native-worklets/package.json'\\).version\\)\")",
+      "Bash(echo \"PID: $!\")",
+      "Bash(kill 87294 87316)",
+      "Bash(tee /tmp/expo_output.txt)",
+      "Bash(echo \"EXIT: $?\")"
+    ]
+  }
+}
