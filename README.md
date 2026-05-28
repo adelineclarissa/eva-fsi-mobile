@@ -1,4 +1,4 @@
-# Nova Banking App
+# EVA Banking App
 
 A sleek, premium AI-powered mobile banking app built with React Native (Expo) and a Node.js backend featuring a fully functional AI assistant powered by Claude.
 
