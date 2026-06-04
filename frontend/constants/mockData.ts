@@ -121,11 +121,11 @@ export const MOCK_TRANSACTIONS: Transaction[] = [
 ];
 
 export const MOCK_BENEFICIARIES: Beneficiary[] = [
-  { id: 'ben_001', name: 'Budi Santoso', accountNumber: '****1234', bankName: 'Bank BCA', initials: 'BS', color: '#3B82F6' },
-  { id: 'ben_002', name: 'Sari Dewi', accountNumber: '****5678', bankName: 'Bank Mandiri', initials: 'SD', color: '#10B981' },
-  { id: 'ben_003', name: 'Andi Wijaya', accountNumber: '****9012', bankName: 'Bank BNI', initials: 'AW', color: '#EF4444' },
-  { id: 'ben_004', name: 'Maya Sari', accountNumber: '****3456', bankName: 'Bank BRI', initials: 'MS', color: '#F59E0B' },
-  { id: 'ben_005', name: 'Rizki Ramadan', accountNumber: '****7890', bankName: 'CIMB Niaga', initials: 'RR', color: '#8B5CF6' },
+  { id: 'ben_001', name: 'Budi Santoso', accountNumber: '0851001234', bankName: 'Bank BCA', initials: 'BS', color: '#3B82F6' },
+  { id: 'ben_002', name: 'Sari Dewi', accountNumber: '0851005678', bankName: 'Bank Mandiri', initials: 'SD', color: '#10B981' },
+  { id: 'ben_003', name: 'Andi Wijaya', accountNumber: '0851009012', bankName: 'Bank BNI', initials: 'AW', color: '#EF4444' },
+  { id: 'ben_004', name: 'Maya Sari', accountNumber: '0851003456', bankName: 'Bank BRI', initials: 'MS', color: '#F59E0B' },
+  { id: 'ben_005', name: 'Rizki Ramadan', accountNumber: '0851007890', bankName: 'CIMB Niaga', initials: 'RR', color: '#8B5CF6' },
 ];
 
 export const QUICK_ACTIONS: QuickAction[] = [

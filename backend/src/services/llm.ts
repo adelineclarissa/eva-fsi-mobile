@@ -1,6 +1,6 @@
-const LLM_URL = process.env.LLM_URL || 'https://api.epsindo.ai/api/v1/chat/stream';
-const LLM_API_KEY = process.env.LLM_API_KEY || '';
-const LLM_USER_ID = process.env.LLM_USER_ID || 'eva-user';
+const LLM_URL = process.env.LLM_URL || "https://api.epsindo.ai/fsi/api/v1/chat";
+const LLM_API_KEY = process.env.LLM_API_KEY || "eps-v1-j8OlarSGqbbXSnJb5UDw";
+const LLM_USER_ID = process.env.LLM_USER_ID || "eva-user";
 
 interface LLMRequest {
   message: string;
@@ -20,7 +20,10 @@ interface LLMResponse {
 // Maps sessionId → conversation_id returned by the server
 const sessions = new Map<string, string>();
 
-async function callLLM(message: string, sessionId: string): Promise<LLMResponse> {
+async function callLLM(
+  message: string,
+  sessionId: string,
+): Promise<LLMResponse> {
   const conversationId = sessions.get(sessionId) ?? sessionId;
 
   const body: LLMRequest = {
@@ -30,10 +33,10 @@ async function callLLM(message: string, sessionId: string): Promise<LLMResponse>
   };
 
   const response = await fetch(LLM_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      ...(LLM_API_KEY ? { Authorization: `Bearer ${LLM_API_KEY}` } : {}),
+      "Content-Type": "application/json",
+      ...(LLM_API_KEY ? { "X-API-Key": LLM_API_KEY } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -43,7 +46,8 @@ async function callLLM(message: string, sessionId: string): Promise<LLMResponse>
     throw new Error(`LLM error ${response.status}: ${text}`);
   }
 
-  const data = await response.json() as LLMResponse;
+  const data = (await response.json()) as LLMResponse;
+  console.log("LLM Response:", JSON.stringify(data, null, 2));
 
   // Keep the conversation_id the server echoes back
   if (data.conversation_id) {
@@ -59,12 +63,16 @@ export interface ChatResponse {
   sessionId: string;
 }
 
-export async function chat(userMessage: string, sessionId: string): Promise<ChatResponse> {
+export async function chat(
+  userMessage: string,
+  sessionId: string,
+): Promise<ChatResponse> {
   const data = await callLLM(userMessage, sessionId);
 
   if (data.guardrail_blocked || data.pii_blocked) {
     return {
-      reply: 'Maaf, pesan ini tidak dapat diproses karena melanggar kebijakan keamanan.',
+      reply:
+        "Maaf, pesan ini tidak dapat diproses karena melanggar kebijakan keamanan.",
       toolsUsed: [],
       sessionId,
     };
@@ -78,12 +86,13 @@ export async function streamChat(
   sessionId: string,
   onToken: (token: string) => void,
   _onToolUse: (toolName: string) => void,
-  onComplete: (toolsUsed: string[]) => void
+  onComplete: (toolsUsed: string[]) => void,
 ): Promise<void> {
   const data = await callLLM(userMessage, sessionId);
 
   if (data.guardrail_blocked || data.pii_blocked) {
-    const blocked = 'Maaf, pesan ini tidak dapat diproses karena melanggar kebijakan keamanan.';
+    const blocked =
+      "Maaf, pesan ini tidak dapat diproses karena melanggar kebijakan keamanan.";
     for (const char of blocked) {
       onToken(char);
       await new Promise((resolve) => setTimeout(resolve, 10));
