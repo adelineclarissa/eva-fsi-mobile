@@ -1,23 +1,29 @@
 import { create } from 'zustand';
-import { Account, Transaction, Beneficiary } from '../types';
+import { Account, Transaction, Beneficiary, UserProfile } from '../types';
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS, MOCK_BENEFICIARIES } from '../constants/mockData';
 
+const ACCOUNT_COLORS = ['#1B3D7A', '#10B981', '#8B5CF6', '#F59E0B'];
+
 interface AccountStore {
+  user: UserProfile | null;
   accounts: Account[];
   transactions: Transaction[];
   beneficiaries: Beneficiary[];
+  activeAccountId: string | null;
   isLoading: boolean;
   lastRefreshed: string | null;
 
-  // Actions
   setAccounts: (accounts: Account[]) => void;
   setTransactions: (transactions: Transaction[]) => void;
   updateBalance: (accountId: string, newBalance: number) => void;
   addTransaction: (transaction: Transaction) => void;
   getTotalBalance: () => number;
   getAccount: (type: 'checking' | 'savings') => Account | undefined;
+  getActiveAccount: () => Account | undefined;
+  setActiveAccount: (id: string) => void;
   setLoading: (loading: boolean) => void;
   syncFromBackend: (data: {
+    user?: UserProfile;
     accounts?: Account[];
     transactions?: Transaction[];
     beneficiaries?: Beneficiary[];
@@ -26,9 +32,11 @@ interface AccountStore {
 }
 
 export const useAccountStore = create<AccountStore>((set, get) => ({
+  user: null,
   accounts: MOCK_ACCOUNTS,
   transactions: MOCK_TRANSACTIONS,
   beneficiaries: MOCK_BENEFICIARIES,
+  activeAccountId: MOCK_ACCOUNTS[0]?.id ?? null,
   isLoading: false,
   lastRefreshed: null,
 
@@ -52,13 +60,25 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
 
   getAccount: (type) => get().accounts.find((acc) => acc.type === type),
 
+  getActiveAccount: () => {
+    const { accounts, activeAccountId } = get();
+    return accounts.find((a) => a.id === activeAccountId) ?? accounts[0];
+  },
+
+  setActiveAccount: (id) => set({ activeAccountId: id }),
+
   setLoading: (isLoading) => set({ isLoading }),
 
-  syncFromBackend: ({ accounts, transactions, beneficiaries }) =>
+  syncFromBackend: ({ user, accounts, transactions, beneficiaries }) =>
     set((state) => ({
-      accounts: accounts || state.accounts,
-      transactions: transactions || state.transactions,
-      beneficiaries: beneficiaries || state.beneficiaries,
+      user: user ?? state.user,
+      accounts: accounts ?? state.accounts,
+      transactions: transactions ?? state.transactions,
+      beneficiaries: beneficiaries ?? state.beneficiaries,
+      activeAccountId:
+        state.activeAccountId && accounts?.find((a) => a.id === state.activeAccountId)
+          ? state.activeAccountId
+          : accounts?.[0]?.id ?? state.activeAccountId,
       lastRefreshed: new Date().toISOString(),
     })),
 
@@ -75,14 +95,26 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         const balanceData = await balanceRes.json();
         const txData = txRes.ok ? await txRes.json() : null;
 
-        set({
-          accounts: balanceData.accounts || get().accounts,
-          transactions: txData?.transactions || get().transactions,
+        const accounts: Account[] = (balanceData.accounts ?? []).map(
+          (a: Account, i: number) => ({
+            ...a,
+            color: a.color ?? ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
+          })
+        );
+
+        set((state) => ({
+          user: balanceData.user ?? state.user,
+          accounts: accounts.length > 0 ? accounts : state.accounts,
+          transactions: txData?.transactions ?? state.transactions,
+          activeAccountId:
+            state.activeAccountId && accounts.find((a) => a.id === state.activeAccountId)
+              ? state.activeAccountId
+              : accounts[0]?.id ?? state.activeAccountId,
           lastRefreshed: new Date().toISOString(),
-        });
+        }));
       }
     } catch {
-      // Keep mock data on network error
+      // Keep existing data on network error
     } finally {
       set({ isLoading: false });
     }

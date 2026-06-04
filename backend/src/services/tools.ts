@@ -1,8 +1,16 @@
-import { mutableAccounts, mutableTransactions, beneficiaries } from '../data/mockData';
-import { searchDocuments, hasDocuments } from './rag';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  mutableAccounts,
+  mutableTransactions,
+  beneficiaries,
+} from "../data/mockData";
+import { searchDocuments, hasDocuments } from "./rag";
+import { v4 as uuidv4 } from "uuid";
+import {
+  checkBalance as bankCheckBalance,
+  getAccounts as bankGetAccounts,
+} from "./bankApi";
 
-const EXCHANGE_RATE_API_KEY = process.env.EXCHANGE_RATE_API_KEY || '';
+const EXCHANGE_RATE_API_KEY = process.env.EXCHANGE_RATE_API_KEY || "";
 const EXCHANGE_FALLBACK_RATES: Record<string, number> = {
   USD: 1,
   EUR: 0.92,
@@ -13,7 +21,7 @@ const EXCHANGE_FALLBACK_RATES: Record<string, number> = {
   CAD: 1.36,
   IDR: 16200,
   CNY: 7.24,
-  CHF: 0.90,
+  CHF: 0.9,
   INR: 83.5,
   MYR: 4.72,
   THB: 35.6,
@@ -21,48 +29,99 @@ const EXCHANGE_FALLBACK_RATES: Record<string, number> = {
   HKD: 7.82,
 };
 
-export async function checkBalance(accountType: 'checking' | 'savings' | 'all'): Promise<string> {
-  const checking = mutableAccounts.find((a) => a.type === 'checking');
-  const savings = mutableAccounts.find((a) => a.type === 'savings');
+export async function checkBalance(
+  accountType: "checking" | "savings" | "all",
+): Promise<string> {
+  try {
+    // Try Bank API first, fall back to mock data
+    const accounts = await bankGetAccounts();
 
-  if (accountType === 'checking' && checking) {
+    if (accountType === "all" || !accountType) {
+      const total = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+      return JSON.stringify({
+        source: "bank-api",
+        accounts: accounts.map((a) => ({
+          account_id: a.account_id,
+          account_name: a.account_name || a.account_type || "Account",
+          balance: a.balance ?? 0,
+          currency: a.currency || "USD",
+          formatted: `$${(a.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        })),
+        total,
+        totalFormatted: `$${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      });
+    }
+
+    // Bank API returns all accounts - no type filter needed
+    const total = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
     return JSON.stringify({
-      account: 'Checking Account',
+      source: "bank-api",
+      accounts: accounts.map((a) => ({
+        account_id: a.account_id,
+        account_name: `Account ****${String(a.card_number).slice(-4)}`,
+        balance: a.balance ?? 0,
+        currency: a.currency || "IDR",
+        formatted: `$${(a.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      })),
+      total,
+      totalFormatted: `$${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+    });
+  } catch (error) {
+    console.warn(
+      "Bank API checkBalance failed, falling back to mock data:",
+      error,
+    );
+    return checkBalanceFallback(accountType);
+  }
+}
+
+function checkBalanceFallback(
+  accountType: "checking" | "savings" | "all",
+): string {
+  const checking = mutableAccounts.find((a) => a.type === "checking");
+  const savings = mutableAccounts.find((a) => a.type === "savings");
+
+  if (accountType === "checking" && checking) {
+    return JSON.stringify({
+      source: "mock",
+      account: "Checking Account",
       accountNumber: checking.accountNumber,
       balance: checking.balance,
       currency: checking.currency,
-      formatted: `$${checking.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      formatted: `$${checking.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
     });
   }
 
-  if (accountType === 'savings' && savings) {
+  if (accountType === "savings" && savings) {
     return JSON.stringify({
-      account: 'Savings Account',
+      source: "mock",
+      account: "Savings Account",
       accountNumber: savings.accountNumber,
       balance: savings.balance,
       currency: savings.currency,
-      formatted: `$${savings.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      formatted: `$${savings.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
     });
   }
 
   const total = (checking?.balance ?? 0) + (savings?.balance ?? 0);
   return JSON.stringify({
+    source: "mock",
     accounts: [
       {
-        type: 'checking',
-        name: 'Checking Account',
+        type: "checking",
+        name: "Checking Account",
         balance: checking?.balance ?? 0,
-        formatted: `$${(checking?.balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        formatted: `$${(checking?.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
       },
       {
-        type: 'savings',
-        name: 'Savings Account',
+        type: "savings",
+        name: "Savings Account",
         balance: savings?.balance ?? 0,
-        formatted: `$${(savings?.balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        formatted: `$${(savings?.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
       },
     ],
     total: total,
-    totalFormatted: `$${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+    totalFormatted: `$${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
   });
 }
 
@@ -70,14 +129,14 @@ export async function transferFunds(
   toBeneficiaryName: string,
   amount: number,
   currency: string,
-  fromAccount: 'checking' | 'savings'
+  fromAccount: "checking" | "savings",
 ): Promise<string> {
-  const beneficiary = beneficiaries.find(
-    (b) => b.name.toLowerCase().includes(toBeneficiaryName.toLowerCase())
+  const beneficiary = beneficiaries.find((b) =>
+    b.name.toLowerCase().includes(toBeneficiaryName.toLowerCase()),
   );
 
   if (!beneficiary) {
-    const names = beneficiaries.map((b) => b.name).join(', ');
+    const names = beneficiaries.map((b) => b.name).join(", ");
     return JSON.stringify({
       success: false,
       error: `Beneficiary "${toBeneficiaryName}" not found. Available: ${names}`,
@@ -86,7 +145,10 @@ export async function transferFunds(
 
   const account = mutableAccounts.find((a) => a.type === fromAccount);
   if (!account) {
-    return JSON.stringify({ success: false, error: 'Source account not found' });
+    return JSON.stringify({
+      success: false,
+      error: "Source account not found",
+    });
   }
 
   if (account.balance < amount) {
@@ -102,14 +164,14 @@ export async function transferFunds(
   const transaction = {
     id: `tx_${uuidv4().slice(0, 8)}`,
     title: `Transfer to ${beneficiary.name}`,
-    subtitle: 'AI-Initiated Transfer',
+    subtitle: "AI-Initiated Transfer",
     amount,
-    type: 'debit' as const,
-    category: 'transfer',
+    type: "debit" as const,
+    category: "transfer",
     date: new Date().toISOString(),
     accountId: account.id,
-    status: 'completed' as const,
-    icon: 'send',
+    status: "completed" as const,
+    icon: "send",
   };
 
   mutableTransactions.unshift(transaction);
@@ -121,7 +183,7 @@ export async function transferFunds(
     recipient: beneficiary.name,
     recipientAccount: beneficiary.accountNumber,
     newBalance: account.balance,
-    newBalanceFormatted: `$${account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+    newBalanceFormatted: `$${account.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
     timestamp: transaction.date,
   });
 }
@@ -129,7 +191,7 @@ export async function transferFunds(
 export async function getExchangeRate(
   fromCurrency: string,
   toCurrency: string,
-  amount?: number
+  amount?: number,
 ): Promise<string> {
   const from = fromCurrency.toUpperCase();
   const to = toCurrency.toUpperCase();
@@ -139,7 +201,7 @@ export async function getExchangeRate(
 
     if (EXCHANGE_RATE_API_KEY) {
       const response = await fetch(
-        `https://v6.exchangerate-api.com/v6/${EXCHANGE_RATE_API_KEY}/pair/${from}/${to}`
+        `https://v6.exchangerate-api.com/v6/${EXCHANGE_RATE_API_KEY}/pair/${from}/${to}`,
       );
       if (response.ok) {
         const data = (await response.json()) as { conversion_rate: number };
@@ -156,7 +218,7 @@ export async function getExchangeRate(
       to,
       rate,
       rateFormatted: rate >= 1 ? rate.toFixed(4) : rate.toFixed(6),
-      source: EXCHANGE_RATE_API_KEY ? 'live' : 'cached',
+      source: EXCHANGE_RATE_API_KEY ? "live" : "cached",
       timestamp: new Date().toISOString(),
     };
 
@@ -164,7 +226,7 @@ export async function getExchangeRate(
       const converted = amount * rate;
       result.originalAmount = amount;
       result.convertedAmount = converted;
-      result.convertedFormatted = converted.toLocaleString('en-US', {
+      result.convertedFormatted = converted.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
@@ -173,7 +235,7 @@ export async function getExchangeRate(
 
     return JSON.stringify(result);
   } catch (error) {
-    return JSON.stringify({ error: 'Failed to fetch exchange rate', from, to });
+    return JSON.stringify({ error: "Failed to fetch exchange rate", from, to });
   }
 }
 
@@ -187,7 +249,8 @@ export async function searchDocumentsWrapper(query: string): Promise<string> {
   if (!hasDocuments()) {
     return JSON.stringify({
       found: false,
-      message: 'No documents have been uploaded yet. Please upload a PDF document first.',
+      message:
+        "No documents have been uploaded yet. Please upload a PDF document first.",
     });
   }
 
@@ -196,7 +259,7 @@ export async function searchDocumentsWrapper(query: string): Promise<string> {
   if (chunks.length === 0) {
     return JSON.stringify({
       found: false,
-      message: 'No relevant information found in uploaded documents.',
+      message: "No relevant information found in uploaded documents.",
     });
   }
 
@@ -207,7 +270,7 @@ export async function searchDocumentsWrapper(query: string): Promise<string> {
       content: c.content,
       relevanceScore: c.score,
     })),
-    context: chunks.map((c) => c.content).join('\n\n---\n\n'),
+    context: chunks.map((c) => c.content).join("\n\n---\n\n"),
   });
 }
 
@@ -223,7 +286,7 @@ export async function getTransactionHistory(limit = 10): Promise<string> {
       category: t.category,
       date: t.date,
       status: t.status,
-      formattedAmount: `${t.type === 'debit' ? '-' : '+'}$${t.amount.toFixed(2)}`,
+      formattedAmount: `${t.type === "debit" ? "-" : "+"}$${t.amount.toFixed(2)}`,
     })),
     count: recent.length,
   });

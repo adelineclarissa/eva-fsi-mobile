@@ -9,17 +9,30 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatters';
+import { Account } from '../../types';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
 
+const CARD_GRADIENTS: Record<string, [string, string, string]> = {
+  '#1B3D7A': ['#1B3D7A', '#1E4799', '#24519E'],
+  '#10B981': ['#065F46', '#047857', '#059669'],
+  '#8B5CF6': ['#5B21B6', '#6D28D9', '#7C3AED'],
+  '#F59E0B': ['#78350F', '#92400E', '#B45309'],
+};
+
+function getGradient(color?: string): [string, string, string] {
+  if (color && CARD_GRADIENTS[color]) return CARD_GRADIENTS[color];
+  return ['#1B3D7A', '#1E4799', '#24519E'];
+}
+
 interface BalanceCardProps {
-  checkingBalance: number;
+  account: Account;
   userName: string;
   onPress?: () => void;
 }
 
-export default function BalanceCard({ checkingBalance, userName, onPress }: BalanceCardProps) {
+export default function BalanceCard({ account, userName, onPress }: BalanceCardProps) {
   const [balanceVisible, setBalanceVisible] = useState(false);
   const scale = useSharedValue(0.96);
   const opacity = useSharedValue(0);
@@ -37,11 +50,13 @@ export default function BalanceCard({ checkingBalance, userName, onPress }: Bala
   const handlePressIn = () => { scale.value = withSpring(0.97, { damping: 20 }); };
   const handlePressOut = () => { scale.value = withSpring(1, { damping: 15 }); };
 
+  const gradient = getGradient(account.color);
+
   return (
     <Animated.View style={[styles.container, cardStyle]}>
       <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
         <LinearGradient
-          colors={['#1B3D7A', '#1E4799', '#24519E']}
+          colors={gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradient}
@@ -51,8 +66,10 @@ export default function BalanceCard({ checkingBalance, userName, onPress }: Bala
           <View style={styles.circle3} />
 
           <View style={styles.accountInfo}>
-            <Text style={styles.accountNumber}>128004311 · {userName.toUpperCase()}</Text>
-            <Text style={styles.accountType}>TABUNGAN UTAMA</Text>
+            <Text style={styles.accountNumber}>
+              {account.accountNumber} · {userName.toUpperCase()}
+            </Text>
+            <Text style={styles.accountType}>{account.name.toUpperCase()}</Text>
           </View>
 
           <View style={styles.balanceSection}>
@@ -67,12 +84,14 @@ export default function BalanceCard({ checkingBalance, userName, onPress }: Bala
               </Pressable>
             </View>
             <Text style={styles.balanceAmount}>
-              {balanceVisible ? formatCurrency(checkingBalance) : '••••••••'}
+              {balanceVisible
+                ? formatCurrency(account.balance, account.currency)
+                : '••••••••'}
             </Text>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.openDate}>Sejak Maret 2026</Text>
+            <Text style={styles.currencyBadge}>{account.currency}</Text>
             <Pressable style={styles.arrowBtn} onPress={onPress}>
               <Ionicons name="chevron-forward" size={18} color="#fff" />
             </Pressable>
@@ -160,10 +179,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
-  openDate: {
+  currencyBadge: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
-    fontWeight: '400',
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '600',
+    letterSpacing: 0.8,
   },
   arrowBtn: {
     width: 36,

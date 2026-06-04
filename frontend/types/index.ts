@@ -5,7 +5,7 @@ export interface Account {
   balance: number;
   currency: string;
   accountNumber: string;
-  color: string;
+  color?: string;
 }
 
 export interface Transaction {

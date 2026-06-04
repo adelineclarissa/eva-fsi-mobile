@@ -1,4 +1,4 @@
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
 
 export interface ChatApiResponse {
   reply: string;
@@ -9,16 +9,25 @@ export interface ChatApiResponse {
 
 export async function sendChatMessage(
   message: string,
-  sessionId: string
+  sessionId: string,
+  activeAccountId?: string,
 ): Promise<ChatApiResponse> {
+  const payload = { message, sessionId, activeAccountId };
+  console.log(
+    "[API] sendChatMessage payload:",
+    JSON.stringify(payload, null, 2),
+  );
+
   const response = await fetch(`${BASE_URL}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sessionId }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Network error' }));
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Network error" }));
     throw new Error(error.error || `Request failed: ${response.status}`);
   }
 
@@ -31,12 +40,16 @@ export async function streamChatMessage(
   onToken: (token: string) => void,
   onToolUse: (toolName: string) => void,
   onComplete: (toolsUsed: string[]) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  activeAccountId?: string,
+  onAccountSelect?: (
+    accounts: { index: number; account_name: string; currency: string }[],
+  ) => void,
 ): Promise<void> {
   const response = await fetch(`${BASE_URL}/chat/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sessionId }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, sessionId, activeAccountId }),
   });
 
   if (!response.ok) {
@@ -44,31 +57,33 @@ export async function streamChatMessage(
   }
 
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response stream available');
+  if (!reader) throw new Error("No response stream available");
 
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
 
     for (const line of lines) {
-      if (line.startsWith('data: ')) {
+      if (line.startsWith("data: ")) {
         try {
           const data = JSON.parse(line.slice(6));
 
-          if ('token' in data) {
+          if ("token" in data) {
             onToken(data.token);
-          } else if ('toolName' in data) {
+          } else if ("toolName" in data) {
             onToolUse(data.toolName);
-          } else if ('toolsUsed' in data) {
+          } else if ("toolsUsed" in data) {
             onComplete(data.toolsUsed);
-          } else if ('message' in data) {
+          } else if ("accounts" in data && data.needsSelection) {
+            onAccountSelect?.(data.accounts);
+          } else if ("message" in data) {
             onError(data.message);
           }
         } catch {
@@ -82,24 +97,31 @@ export async function streamChatMessage(
 export async function uploadDocument(
   uri: string,
   name: string,
-  mimeType: string
-): Promise<{ documentId: string; name: string; pages: number; message: string }> {
+  mimeType: string,
+): Promise<{
+  documentId: string;
+  name: string;
+  pages: number;
+  message: string;
+}> {
   const formData = new FormData();
-  formData.append('file', {
+  formData.append("file", {
     uri,
     name,
-    type: mimeType || 'application/pdf',
+    type: mimeType || "application/pdf",
   } as unknown as Blob);
 
   const response = await fetch(`${BASE_URL}/upload`, {
-    method: 'POST',
+    method: "POST",
     body: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { "Content-Type": "multipart/form-data" },
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Upload failed' }));
-    throw new Error(error.error || 'Upload failed');
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Upload failed" }));
+    throw new Error(error.error || "Upload failed");
   }
 
   return response.json();
@@ -108,13 +130,19 @@ export async function uploadDocument(
 export async function getExchangeRates(
   from: string,
   to: string,
-  amount?: number
-): Promise<{ from: string; to: string; rate: number; rateFormatted: string; convertedAmount?: number }> {
+  amount?: number,
+): Promise<{
+  from: string;
+  to: string;
+  rate: number;
+  rateFormatted: string;
+  convertedAmount?: number;
+}> {
   const params = new URLSearchParams({ from, to });
-  if (amount !== undefined) params.append('amount', amount.toString());
+  if (amount !== undefined) params.append("amount", amount.toString());
 
   const response = await fetch(`${BASE_URL}/exchange-rates?${params}`);
-  if (!response.ok) throw new Error('Failed to fetch exchange rates');
+  if (!response.ok) throw new Error("Failed to fetch exchange rates");
 
   return response.json();
 }
@@ -124,7 +152,7 @@ export async function getPopularRates(): Promise<{
   rates: Array<{ currency: string; rate: number; rateFormatted: string }>;
 }> {
   const response = await fetch(`${BASE_URL}/exchange-rates/popular`);
-  if (!response.ok) throw new Error('Failed to fetch rates');
+  if (!response.ok) throw new Error("Failed to fetch rates");
   return response.json();
 }
 
