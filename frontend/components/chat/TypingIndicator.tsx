@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,21 +9,21 @@ import Animated, {
   withDelay,
   FadeIn,
   FadeOut,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '../../constants/colors';
+} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import { Colors } from "../../constants/colors";
 
 interface TypingIndicatorProps {
   activeTool?: string | null;
 }
 
 const TOOL_MESSAGES: Record<string, string> = {
-  check_balance: 'Checking balance...',
-  transfer_funds: 'Processing transfer...',
-  get_exchange_rate: 'Fetching live rates...',
-  search_documents: 'Searching documents...',
-  get_transaction_history: 'Loading transactions...',
-  get_beneficiaries: 'Getting contacts...',
+  check_balance: "Checking balance...",
+  transfer_funds: "Processing transfer...",
+  get_exchange_rate: "Fetching live rates...",
+  search_documents: "Searching documents...",
+  get_transaction_history: "Loading transactions...",
+  get_beneficiaries: "Getting contacts...",
 };
 
 function Dot({ delay }: { delay: number }) {
@@ -35,11 +35,11 @@ function Dot({ delay }: { delay: number }) {
       withRepeat(
         withSequence(
           withTiming(-6, { duration: 300 }),
-          withTiming(0, { duration: 300 })
+          withTiming(0, { duration: 300 }),
         ),
         -1,
-        false
-      )
+        false,
+      ),
     );
   }, [delay]);
 
@@ -54,14 +54,18 @@ export default function TypingIndicator({ activeTool }: TypingIndicatorProps) {
   const toolMessage = activeTool ? TOOL_MESSAGES[activeTool] : null;
 
   return (
-    <Animated.View entering={FadeIn.springify()} exiting={FadeOut.duration(200)} style={styles.container}>
+    <Animated.View
+      entering={FadeIn.springify()}
+      exiting={FadeOut.duration(200)}
+      style={styles.container}
+    >
       <View style={styles.row}>
         {/* Avatar */}
         <LinearGradient
           colors={[Colors.accentPurple, Colors.accentTeal]}
           style={styles.avatar}
         >
-          <Text style={styles.avatarText}>N</Text>
+          <Text style={styles.avatarText}>E</Text>
         </LinearGradient>
 
         {/* Bubble */}
@@ -86,21 +90,21 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 10,
   },
   avatar: {
     width: 32,
     height: 32,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   bubble: {
     backgroundColor: Colors.card,
@@ -115,11 +119,11 @@ const styles = StyleSheet.create({
   toolText: {
     fontSize: 12,
     color: Colors.accentPurpleLight,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   dots: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
     height: 20,
   },
