@@ -21,8 +21,6 @@ import { useAccountStore } from "../store/accountStore";
 import { Beneficiary } from "../types";
 import { formatCurrency } from "../utils/formatters";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
-
 const formatAmount = (value: string) => {
   const digits = value.replace(/\D/g, "");
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -88,45 +86,13 @@ export default function TransferScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const response = await fetch(`${API_URL}/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          toBeneficiaryName: selected.name,
-          amount: parseAmount(amount),
-          currency: "IDR",
-          fromAccount,
-          note,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        if (sourceAccount) updateBalance(sourceAccount.id, data.newBalance);
-        addTransaction({
-          id: data.transactionId,
-          title: `Transfer ke ${selected.name}`,
-          subtitle: note || "Transfer Pribadi",
-          amount: parseAmount(amount),
-          type: "debit",
-          category: "transfer",
-          date: new Date().toISOString(),
-          accountId: sourceAccount?.id ?? "",
-          status: "completed",
-          icon: "send-outline",
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setStep("success");
-      } else {
-        Alert.alert("Transfer Gagal", data.error || "Silakan coba lagi");
-      }
-    } catch {
-      if (sourceAccount)
+      // Local transfer - update state directly
+      if (sourceAccount) {
         updateBalance(
           sourceAccount.id,
           sourceAccount.balance - parseAmount(amount),
         );
+      }
       addTransaction({
         id: `tx_${Date.now()}`,
         title: `Transfer ke ${selected.name}`,
@@ -141,6 +107,8 @@ export default function TransferScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep("success");
+    } catch {
+      Alert.alert("Transfer Gagal", "Silakan coba lagi");
     } finally {
       setIsLoading(false);
     }

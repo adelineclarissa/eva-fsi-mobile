@@ -4,7 +4,8 @@ export interface Account {
   name: string;
   balance: number;
   currency: string;
-  accountNumber: string;
+  accountNumber: string;       // masked, for display only e.g. ****4821
+  rawAccountNumber: string;    // full numeric account number
   color?: string;
 }
 

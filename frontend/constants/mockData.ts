@@ -8,6 +8,7 @@ export const MOCK_ACCOUNTS: Account[] = [
     balance: 12580500,
     currency: 'IDR',
     accountNumber: '****4821',
+    rawAccountNumber: '1234564821',
     color: '#1B3D7A',
   },
   {
@@ -17,6 +18,7 @@ export const MOCK_ACCOUNTS: Account[] = [
     balance: 45230000,
     currency: 'IDR',
     accountNumber: '****9314',
+    rawAccountNumber: '1234569314',
     color: '#10B981',
   },
 ];
