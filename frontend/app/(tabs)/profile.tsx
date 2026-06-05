@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -55,14 +55,7 @@ const MENU_ITEMS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, refresh, isLoading } = useAccountStore();
-
-  useEffect(() => {
-    // Refresh data to ensure we have the latest user info
-    if (!user) {
-      refresh();
-    }
-  }, []);
+  const { user, isLoading } = useAccountStore();
 
   // Get initials from user name
   const getInitials = (name: string) => {
