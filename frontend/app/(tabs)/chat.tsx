@@ -23,15 +23,41 @@ import * as Haptics from "expo-haptics";
 
 import { Colors } from "../../constants/colors";
 import { useChatStore } from "../../store/chatStore";
-import { ChatMessage } from "../../types";
+import { useAccountStore } from "../../store/accountStore";
+import { useRouter } from "expo-router";
+import { ChatMessage, Beneficiary } from "../../types";
 import ChatBubble from "../../components/chat/ChatBubble";
 import TypingIndicator from "../../components/chat/TypingIndicator";
-import { sendChatMessage } from "../../services/fsiApi";
+import { sendChatMessage, LlmActionPayload } from "../../services/fsiApi";
+
+function searchBeneficiaries(
+  beneficiaries: Beneficiary[],
+  keyword: string,
+): Beneficiary[] {
+  const lower = keyword.toLowerCase().trim();
+  if (!lower) return [];
+  return beneficiaries.filter((b) => b.name.toLowerCase().includes(lower));
+}
+
+function extractTransferBeneficiaryName(
+  actionPayload: LlmActionPayload | null,
+): string | null {
+  if (!actionPayload || actionPayload.action !== "transfer") return null;
+  const data = actionPayload.data;
+  return (
+    (data.name as string) ??
+    (data.beneficiary_name as string) ??
+    (data.toBeneficiaryName as string) ??
+    (data.recipient as string) ??
+    null
+  );
+}
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const router = useRouter();
 
   const {
     messages,
@@ -40,7 +66,12 @@ export default function ChatScreen() {
     addMessage,
     setLoading,
     clearChat,
+    pendingSelection,
+    selectedBeneficiary,
+    addBeneficiarySelectionMessage,
+    clearPendingSelection,
   } = useChatStore();
+  const { beneficiaries } = useAccountStore();
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -50,6 +81,24 @@ export default function ChatScreen() {
       );
     }
   }, [messages.length]);
+
+  const handleBeneficiarySelect = useCallback(
+    (beneficiary: Beneficiary) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      clearPendingSelection();
+
+      // Navigate to transfer screen with pre-filled data
+      router.push({
+        pathname: "/transfer",
+        params: {
+          beneficiaryId: beneficiary.id,
+          amount: String(pendingSelection?.amount ?? ""),
+          desc: pendingSelection?.desc ?? "",
+        },
+      });
+    },
+    [pendingSelection, clearPendingSelection, router],
+  );
 
   const sendMessage = useCallback(async () => {
     const messageText = inputText.trim();
@@ -61,11 +110,41 @@ export default function ChatScreen() {
     setLoading(true);
     try {
       const result = await sendChatMessage(messageText, sessionId);
-      addMessage({
-        role: "assistant",
-        content: result.reply,
-        toolsUsed: result.toolsUsed,
-      });
+
+      // Check if the LLM returned a transfer intent with a beneficiary name
+      const beneficiaryName = extractTransferBeneficiaryName(
+        result.actionPayload,
+      );
+
+      if (beneficiaryName) {
+        // Add a confirmation message for the transfer intent
+        const amount = result.actionPayload?.data.amount;
+        const desc = result.actionPayload?.data.desc;
+        const intentText = amount
+          ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
+          : `Transfer ke ${beneficiaryName}`;
+        addMessage({
+          role: "assistant",
+          content: intentText,
+          toolsUsed: result.toolsUsed,
+        });
+
+        // Search beneficiaries and show selection UI
+        const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
+        addBeneficiarySelectionMessage({
+          keyword: beneficiaryName,
+          matches,
+          amount: amount ? Number(amount) : undefined,
+          desc: desc ? String(desc) : undefined,
+        });
+      } else {
+        // No transfer intent — just add the normal reply
+        addMessage({
+          role: "assistant",
+          content: result.reply,
+          toolsUsed: result.toolsUsed,
+        });
+      }
     } catch {
       addMessage({
         role: "assistant",
@@ -74,7 +153,15 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  }, [inputText, isLoading, sessionId, addMessage, setLoading]);
+  }, [
+    inputText,
+    isLoading,
+    sessionId,
+    addMessage,
+    setLoading,
+    beneficiaries,
+    addBeneficiarySelectionMessage,
+  ]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -96,9 +183,15 @@ export default function ChatScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => (
-      <ChatBubble key={item.id} message={item} />
+      <ChatBubble
+        key={item.id}
+        message={item}
+        onSelectBeneficiary={handleBeneficiarySelect}
+        selectionDisabled={!!selectedBeneficiary}
+        selectedBeneficiaryId={selectedBeneficiary?.id ?? null}
+      />
     ),
-    [],
+    [handleBeneficiarySelect, selectedBeneficiary],
   );
 
   const renderHeader = () => (

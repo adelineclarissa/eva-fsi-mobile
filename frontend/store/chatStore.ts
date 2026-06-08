@@ -1,6 +1,14 @@
-import { create } from 'zustand';
-import { ChatMessage } from '../types';
-import { generateId } from '../utils/formatters';
+import { create } from "zustand";
+import { ChatMessage, Beneficiary, BeneficiarySelectionData } from "../types";
+import { generateId } from "../utils/formatters";
+
+export interface PendingBeneficiarySelection {
+  messageId: string;
+  keyword: string;
+  matches: Beneficiary[];
+  amount?: number;
+  desc?: string;
+}
 
 interface ChatStore {
   messages: ChatMessage[];
@@ -9,8 +17,10 @@ interface ChatStore {
   streamingContent: string;
   sessionId: string;
   activeTool: string | null;
+  pendingSelection: PendingBeneficiarySelection | null;
+  selectedBeneficiary: Beneficiary | null;
 
-  addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
+  addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   appendToLastMessage: (content: string) => void;
   setLoading: (loading: boolean) => void;
   setStreaming: (streaming: boolean) => void;
@@ -20,17 +30,27 @@ interface ChatStore {
   setActiveTool: (tool: string | null) => void;
   clearChat: () => void;
   generateSessionId: () => void;
+  setPendingSelection: (selection: PendingBeneficiarySelection | null) => void;
+  clearPendingSelection: () => void;
+  setSelectedBeneficiary: (beneficiary: Beneficiary | null) => void;
+  addBeneficiarySelectionMessage: (
+    data: BeneficiarySelectionData & { amount?: number; desc?: string },
+  ) => void;
+  addSelectionResultMessage: (beneficiary: Beneficiary) => void;
 }
 
-const createSessionId = () => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+const createSessionId = () =>
+  `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   isLoading: false,
   isStreaming: false,
-  streamingContent: '',
+  streamingContent: "",
   sessionId: createSessionId(),
   activeTool: null,
+  pendingSelection: null,
+  selectedBeneficiary: null,
 
   addMessage: (message) =>
     set((state) => ({
@@ -49,7 +69,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const messages = [...state.messages];
       if (messages.length > 0) {
         const last = messages[messages.length - 1];
-        messages[messages.length - 1] = { ...last, content: last.content + content };
+        messages[messages.length - 1] = {
+          ...last,
+          content: last.content + content,
+        };
       }
       return { messages };
     }),
@@ -69,13 +92,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ...state.messages,
           {
             id: generateId(),
-            role: 'assistant' as const,
+            role: "assistant" as const,
             content: streamingContent,
             timestamp: new Date().toISOString(),
             toolsUsed,
           },
         ],
-        streamingContent: '',
+        streamingContent: "",
         isStreaming: false,
         activeTool: null,
       }));
@@ -90,9 +113,66 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       sessionId: createSessionId(),
       isLoading: false,
       isStreaming: false,
-      streamingContent: '',
+      streamingContent: "",
       activeTool: null,
+      pendingSelection: null,
+      selectedBeneficiary: null,
     }),
 
   generateSessionId: () => set({ sessionId: createSessionId() }),
+
+  setPendingSelection: (pendingSelection) => set({ pendingSelection }),
+
+  clearPendingSelection: () => set({ pendingSelection: null }),
+
+  setSelectedBeneficiary: (selectedBeneficiary) => set({ selectedBeneficiary }),
+
+  addBeneficiarySelectionMessage: (data) => {
+    const id = generateId();
+    set((state) => ({
+      messages: [
+        ...state.messages,
+        {
+          id,
+          role: "assistant" as const,
+          content:
+            data.matches.length === 1
+              ? "Did you mean:"
+              : `Who would you like to transfer to?`,
+          timestamp: new Date().toISOString(),
+          actionPayload: {
+            type: "beneficiary_selection",
+            data: {
+              keyword: data.keyword,
+              matches: data.matches,
+            },
+          },
+        },
+      ],
+      pendingSelection: {
+        messageId: id,
+        keyword: data.keyword,
+        matches: data.matches,
+        amount: data.amount,
+        desc: data.desc,
+      },
+    }));
+  },
+
+  addSelectionResultMessage: (beneficiary) => {
+    set((state) => ({
+      messages: [
+        ...state.messages,
+        {
+          id: generateId(),
+          role: "user" as const,
+          content: `Selected: ${beneficiary.name}`,
+          timestamp: new Date().toISOString(),
+          selectionResult: { selectedBeneficiary: beneficiary },
+        },
+      ],
+      pendingSelection: null,
+      selectedBeneficiary: beneficiary,
+    }));
+  },
 }));
