@@ -85,7 +85,8 @@ export default function HomeScreen() {
     (type: QuickActionType) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (type === "transfer") {
-        router.push("/transfer");
+        const accountType = activeAccount?.type ?? "checking";
+        router.push(`/transfer?fromAccount=${accountType}`);
       } else if (type === "exchange") {
         router.push("/(tabs)/chat");
       } else if (type === "cards") {
@@ -94,7 +95,7 @@ export default function HomeScreen() {
         Alert.alert("Segera Hadir", "Fitur ini akan segera tersedia!");
       }
     },
-    [router],
+    [router, activeAccount],
   );
 
   const handleAIPress = useCallback(() => {
