@@ -1,11 +1,11 @@
 export interface Account {
   id: string;
-  type: 'checking' | 'savings';
+  type: "checking" | "savings";
   name: string;
   balance: number;
   currency: string;
-  accountNumber: string;       // masked, for display only e.g. ****4821
-  rawAccountNumber: string;    // full numeric account number
+  accountNumber: string; // masked, for display only e.g. ****4821
+  rawAccountNumber: string; // full numeric account number
   color?: string;
 }
 
@@ -14,11 +14,11 @@ export interface Transaction {
   title: string;
   subtitle?: string;
   amount: number;
-  type: 'credit' | 'debit';
+  type: "credit" | "debit";
   category: string;
   date: string;
   accountId: string;
-  status: 'completed' | 'pending' | 'failed';
+  status: "completed" | "pending" | "failed";
   icon?: string;
 }
 
@@ -36,11 +36,25 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
-  tier: 'standard' | 'premium' | 'elite';
+  tier: "standard" | "premium" | "elite";
   joinDate: string;
 }
 
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = "user" | "assistant" | "system";
+
+export interface BeneficiarySelectionData {
+  keyword: string;
+  matches: Beneficiary[];
+}
+
+export interface BeneficiarySelectionResult {
+  selectedBeneficiary: Beneficiary;
+}
+
+export interface ActionPayload {
+  type: "beneficiary_selection";
+  data: BeneficiarySelectionData;
+}
 
 export interface ChatMessage {
   id: string;
@@ -49,13 +63,15 @@ export interface ChatMessage {
   timestamp: string;
   toolsUsed?: string[];
   isStreaming?: boolean;
+  actionPayload?: ActionPayload;
+  selectionResult?: BeneficiarySelectionResult;
 }
 
 export interface TransferPayload {
   toBeneficiaryName: string;
   amount: number;
   currency: string;
-  fromAccount: 'checking' | 'savings';
+  fromAccount: "checking" | "savings";
   note?: string;
 }
 
@@ -64,11 +80,19 @@ export interface ExchangeRate {
   to: string;
   rate: number;
   rateFormatted: string;
-  source: 'live' | 'cached';
+  source: "live" | "cached";
   timestamp: string;
 }
 
-export type QuickActionType = 'transfer' | 'pay' | 'topup' | 'exchange' | 'savings' | 'cards' | 'investment' | 'more';
+export type QuickActionType =
+  | "transfer"
+  | "pay"
+  | "topup"
+  | "exchange"
+  | "savings"
+  | "cards"
+  | "investment"
+  | "more";
 
 export interface QuickAction {
   type: QuickActionType;

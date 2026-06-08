@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -12,7 +18,7 @@ import {
 import { captureRef } from "react-native-view-shot";
 import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -68,7 +74,10 @@ function PinEntryStep({
   }, [pin, isLoading, onConfirm]);
 
   return (
-    <Pressable style={styles.pinContainer} onPress={() => inputRef.current?.focus()}>
+    <Pressable
+      style={styles.pinContainer}
+      onPress={() => inputRef.current?.focus()}
+    >
       <View style={styles.pinCard}>
         <View style={styles.pinHeader}>
           <Ionicons
@@ -84,7 +93,10 @@ function PinEntryStep({
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <View
               key={i}
-              style={[styles.pinDot, i < pin.length ? styles.pinDotFilled : styles.pinDotEmpty]}
+              style={[
+                styles.pinDot,
+                i < pin.length ? styles.pinDotFilled : styles.pinDotEmpty,
+              ]}
             />
           ))}
         </View>
@@ -106,6 +118,7 @@ function PinEntryStep({
 
 export default function TransferScreen() {
   const router = useRouter();
+  const searchParams = useLocalSearchParams();
   const { beneficiaries, accounts, addTransaction, updateBalance } =
     useAccountStore();
   const [step, setStep] = useState<Step>("select");
@@ -120,6 +133,28 @@ export default function TransferScreen() {
   const [transactionId, setTransactionId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
   const receiptRef = useRef<View>(null);
+
+  // Pre-fill from chat navigation params
+  useEffect(() => {
+    const beneficiaryId = searchParams.beneficiaryId as string | undefined;
+    const paramAmount = searchParams.amount as string | undefined;
+    const paramDesc = searchParams.desc as string | undefined;
+
+    if (beneficiaryId) {
+      const ben = beneficiaries.find((b) => b.id === beneficiaryId);
+      if (ben) {
+        setSelected(ben);
+        setStep("amount");
+      }
+    }
+    if (paramAmount) {
+      const rawDigits = paramAmount.replace(/\D/g, "");
+      setAmount(formatAmount(rawDigits));
+    }
+    if (paramDesc) {
+      setNote(paramDesc);
+    }
+  }, [searchParams, beneficiaries]);
 
   const sourceAccount = accounts.find((a) => a.type === fromAccount);
 
@@ -205,7 +240,10 @@ export default function TransferScreen() {
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Izin diperlukan", "Izinkan akses galeri untuk menyimpan bukti transfer.");
+        Alert.alert(
+          "Izin diperlukan",
+          "Izinkan akses galeri untuk menyimpan bukti transfer.",
+        );
         return;
       }
       const uri = await captureRef(receiptRef, { format: "png", quality: 1 });
@@ -352,11 +390,20 @@ export default function TransferScreen() {
                     : "-",
                 },
                 { label: "Nama Penerima", value: selected?.name ?? "-" },
-                { label: "Rekening Penerima", value: selected?.accountNumber ?? "-" },
+                {
+                  label: "Rekening Penerima",
+                  value: selected?.accountNumber ?? "-",
+                },
                 { label: "Bank Penerima", value: selected?.bankName || "-" },
-                { label: "Jumlah Transfer", value: formatCurrency(parseAmount(amount)) },
+                {
+                  label: "Jumlah Transfer",
+                  value: formatCurrency(parseAmount(amount)),
+                },
                 { label: "Biaya Transfer", value: "Gratis", green: true },
-                { label: "Rekening Pengirim", value: sourceAccount?.accountNumber ?? "-" },
+                {
+                  label: "Rekening Pengirim",
+                  value: sourceAccount?.accountNumber ?? "-",
+                },
               ].map(({ label, value, green }, i, arr) => (
                 <View
                   key={label}
@@ -381,19 +428,36 @@ export default function TransferScreen() {
 
           <View style={styles.receiptActions}>
             <Pressable
-              style={({ pressed }) => [styles.receiptIconBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [
+                styles.receiptIconBtn,
+                pressed && styles.btnPressed,
+              ]}
               onPress={handleShareReceipt}
             >
-              <Ionicons name="share-social-outline" size={20} color={Colors.primary} />
+              <Ionicons
+                name="share-social-outline"
+                size={20}
+                color={Colors.primary}
+              />
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.receiptIconBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [
+                styles.receiptIconBtn,
+                pressed && styles.btnPressed,
+              ]}
               onPress={handleDownload}
             >
-              <Ionicons name="download-outline" size={20} color={Colors.primary} />
+              <Ionicons
+                name="download-outline"
+                size={20}
+                color={Colors.primary}
+              />
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.receiptDoneBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [
+                styles.receiptDoneBtn,
+                pressed && styles.btnPressed,
+              ]}
               onPress={() => router.back()}
             >
               <Text style={styles.receiptDoneBtnText}>Selesai</Text>
@@ -575,7 +639,6 @@ export default function TransferScreen() {
               </Pressable>
             </Animated.View>
           )}
-
         </ScrollView>
       )}
     </SafeAreaView>

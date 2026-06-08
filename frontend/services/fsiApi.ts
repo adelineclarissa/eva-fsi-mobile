@@ -4,11 +4,39 @@ const FSI_API_URL =
 const FSI_API_KEY = process.env.EXPO_PUBLIC_FSI_API_KEY || "";
 const FSI_USER_ID = process.env.EXPO_PUBLIC_FSI_USER_ID || "";
 
+export interface ToolCallInfo {
+  tool_name: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface LlmActionPayload {
+  action: string;
+  data: Record<string, unknown>;
+}
+
 export interface ChatApiResponse {
   reply: string;
   toolsUsed: string[];
+  toolCalls: ToolCallInfo[];
+  actionPayload: LlmActionPayload | null;
   conversationId: string;
   timestamp: string;
+}
+
+function tryParseActionPayload(text: string): LlmActionPayload | null {
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && parsed.action && parsed.data) {
+      return {
+        action: String(parsed.action),
+        data: parsed.data as Record<string, unknown>,
+      };
+    }
+  } catch {
+    // Not JSON — fall through
+  }
+  return null;
 }
 
 export async function sendChatMessage(
@@ -43,11 +71,20 @@ export async function sendChatMessage(
   }
 
   const data = await response.json();
+  const rawToolCalls = (data.tool_calls ?? []) as ToolCallInfo[];
+  const rawMessage = data.message || "";
+
+  // Try parsing the message as a structured action payload
+  const actionPayload = tryParseActionPayload(rawMessage);
+
+  // If the message is a pure JSON action payload, use a fallback reply
+  const reply = actionPayload ? "" : rawMessage;
+
   return {
-    reply: data.message || "",
-    toolsUsed: (data.tool_calls ?? []).map(
-      (tc: { tool_name: string }) => tc.tool_name,
-    ),
+    reply,
+    toolsUsed: rawToolCalls.map((tc: ToolCallInfo) => tc.tool_name),
+    toolCalls: rawToolCalls,
+    actionPayload,
     conversationId: data.conversation_id || conversationId,
     timestamp: new Date().toISOString(),
   };

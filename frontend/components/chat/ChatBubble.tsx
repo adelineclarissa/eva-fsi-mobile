@@ -9,11 +9,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { Colors } from "../../constants/colors";
-import { ChatMessage } from "../../types";
+import { ChatMessage, Beneficiary } from "../../types";
 import { formatTime } from "../../utils/formatters";
+import BeneficiarySelector from "./BeneficiarySelector";
 
 interface ChatBubbleProps {
   message: ChatMessage;
+  onSelectBeneficiary?: (beneficiary: Beneficiary) => void;
+  selectionDisabled?: boolean;
+  selectedBeneficiaryId?: string | null;
 }
 
 const TOOL_LABELS: Record<
@@ -100,7 +104,12 @@ function ToolBadge({ toolName }: { toolName: string }) {
   );
 }
 
-export default function ChatBubble({ message }: ChatBubbleProps) {
+export default function ChatBubble({
+  message,
+  onSelectBeneficiary,
+  selectionDisabled = false,
+  selectedBeneficiaryId = null,
+}: ChatBubbleProps) {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -121,6 +130,9 @@ export default function ChatBubble({ message }: ChatBubbleProps) {
       </Animated.View>
     );
   }
+
+  const hasBeneficiaryAction =
+    message.actionPayload?.type === "beneficiary_selection";
 
   return (
     <Animated.View
@@ -151,6 +163,17 @@ export default function ChatBubble({ message }: ChatBubbleProps) {
         <View style={styles.assistantBubble}>
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         </View>
+
+        {/* Beneficiary selector */}
+        {hasBeneficiaryAction && message.actionPayload.data && (
+          <BeneficiarySelector
+            matches={message.actionPayload.data.matches}
+            keyword={message.actionPayload.data.keyword}
+            onSelect={onSelectBeneficiary ?? (() => {})}
+            disabled={selectionDisabled}
+            selectedId={selectedBeneficiaryId}
+          />
+        )}
 
         <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
       </View>
