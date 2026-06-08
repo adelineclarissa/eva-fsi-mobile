@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '../../constants/colors';
-import { CURRENCY_PAIRS } from '../../constants/mockData';
-import { getExchangeRates } from '../../services/apiService';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Colors } from "../../constants/colors";
+import { CURRENCY_PAIRS } from "../../constants/mockData";
 
 const FALLBACK_RATES: Record<string, number> = {
   EUR: 0.9218,
@@ -28,42 +33,19 @@ export default function CurrencyCard() {
     loadRates();
   }, []);
 
-  const loadRates = async () => {
+  const loadRates = () => {
     setIsLoading(true);
-    try {
-      const results = await Promise.allSettled(
-        CURRENCY_PAIRS.map(async (pair) => {
-          const data = await getExchangeRates(pair.from, pair.to);
-          return { ...pair, rate: data.rate, change: (Math.random() - 0.4) * 0.5 };
-        })
-      );
-
-      const loaded = results
-        .filter((r): r is PromiseFulfilledResult<RateItem> => r.status === 'fulfilled')
-        .map((r) => r.value);
-
-      if (loaded.length > 0) {
-        setRates(loaded);
-      } else {
-        setRates(
-          CURRENCY_PAIRS.map((pair) => ({
-            ...pair,
-            rate: FALLBACK_RATES[pair.to] ?? 1,
-            change: (Math.random() - 0.4) * 0.5,
-          }))
-        );
-      }
-    } catch {
+    // Use local fallback rates only - no API calls
+    setTimeout(() => {
       setRates(
         CURRENCY_PAIRS.map((pair) => ({
           ...pair,
           rate: FALLBACK_RATES[pair.to] ?? 1,
           change: (Math.random() - 0.4) * 0.5,
-        }))
+        })),
       );
-    } finally {
       setIsLoading(false);
-    }
+    }, 500);
   };
 
   const formatRate = (rate: number) => {
@@ -73,10 +55,7 @@ export default function CurrencyCard() {
   };
 
   return (
-    <LinearGradient
-      colors={['#0D1120', '#0A0D1A']}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#0D1120", "#0A0D1A"]} style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Live Rates</Text>
         <Text style={styles.subtitle}>USD Base</Text>
@@ -87,15 +66,27 @@ export default function CurrencyCard() {
           <ActivityIndicator size="small" color={Colors.accentPurpleLight} />
         </View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.ratesRow}
+        >
           {rates.map((item) => (
             <View key={`${item.from}-${item.to}`} style={styles.rateCard}>
               <Text style={styles.flag}>{item.flag}</Text>
-              <Text style={styles.pair}>{item.from}/{item.to}</Text>
+              <Text style={styles.pair}>
+                {item.from}/{item.to}
+              </Text>
               <Text style={styles.rate}>{formatRate(item.rate)}</Text>
               <View style={styles.changeBadge}>
-                <Text style={[styles.change, item.change >= 0 ? styles.positive : styles.negative]}>
-                  {item.change >= 0 ? '↑' : '↓'} {Math.abs(item.change).toFixed(2)}%
+                <Text
+                  style={[
+                    styles.change,
+                    item.change >= 0 ? styles.positive : styles.negative,
+                  ]}
+                >
+                  {item.change >= 0 ? "↑" : "↓"}{" "}
+                  {Math.abs(item.change).toFixed(2)}%
                 </Text>
               </View>
             </View>
@@ -114,15 +105,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 14,
   },
   title: {
     fontSize: 15,
     color: Colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   subtitle: {
     fontSize: 12,
@@ -130,8 +121,8 @@ const styles = StyleSheet.create({
   },
   loading: {
     height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   ratesRow: {
     gap: 10,
@@ -141,7 +132,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderRadius: 14,
     padding: 14,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 4,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -153,19 +144,19 @@ const styles = StyleSheet.create({
   pair: {
     fontSize: 11,
     color: Colors.textMuted,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   rate: {
     fontSize: 13,
     color: Colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   changeBadge: {
     marginTop: 2,
   },
   change: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   positive: {
     color: Colors.success,

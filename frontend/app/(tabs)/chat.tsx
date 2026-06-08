@@ -20,244 +20,61 @@ import Animated, {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as DocumentPicker from "expo-document-picker";
 
 import { Colors } from "../../constants/colors";
 import { useChatStore } from "../../store/chatStore";
-import { useAccountStore } from "../../store/accountStore";
 import { ChatMessage } from "../../types";
 import ChatBubble from "../../components/chat/ChatBubble";
 import TypingIndicator from "../../components/chat/TypingIndicator";
-import {
-  sendChatMessage,
-  streamChatMessage,
-  uploadDocument,
-} from "../../services/apiService";
+import { sendChatMessage } from "../../services/fsiApi";
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [pendingAccounts, setPendingAccounts] = useState<
-    { index: number; account_name: string; currency: string }[] | null
-  >(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
   const {
     messages,
     isLoading,
-    isStreaming,
-    streamingContent,
     sessionId,
-    activeTool,
     addMessage,
     setLoading,
-    setStreaming,
-    appendStreamingContent,
-    setStreamingContent,
-    finalizeStreamingMessage,
-    setActiveTool,
     clearChat,
   } = useChatStore();
 
-  const {
-    refresh: refreshAccounts,
-    activeAccountId,
-    setActiveAccount,
-    accounts,
-  } = useAccountStore();
-
   useEffect(() => {
-    if (messages.length > 0 || isStreaming) {
+    if (messages.length > 0) {
       setTimeout(
         () => flatListRef.current?.scrollToEnd({ animated: true }),
         100,
       );
     }
-  }, [messages.length, isStreaming, streamingContent]);
+  }, [messages.length]);
 
-  const sendMessage = useCallback(
-    async (text?: string) => {
-      const messageText = (text || inputText).trim();
-      if (!messageText || isLoading || isStreaming) return;
+  const sendMessage = useCallback(async () => {
+    const messageText = inputText.trim();
+    if (!messageText || isLoading) return;
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setInputText("");
-
-      addMessage({ role: "user", content: messageText });
-      setLoading(true);
-
-      try {
-        // Try streaming first
-        setStreaming(true);
-        setStreamingContent("");
-
-        let toolsUsed: string[] = [];
-        let streamWorked = false;
-
-        try {
-          await streamChatMessage(
-            messageText,
-            sessionId,
-            (token) => {
-              appendStreamingContent(token);
-            },
-            (toolName) => {
-              setActiveTool(toolName);
-            },
-            (tools) => {
-              toolsUsed = tools;
-              streamWorked = true;
-            },
-            (error) => {
-              console.warn("Stream error:", error);
-            },
-            activeAccountId ?? undefined,
-            (accounts) => {
-              setPendingAccounts(accounts);
-              setStreaming(false);
-              setLoading(false);
-            },
-          );
-
-          if (streamWorked) {
-            finalizeStreamingMessage(toolsUsed);
-            // Refresh account data if a transfer was made
-            if (toolsUsed.includes("transfer_funds")) {
-              await refreshAccounts();
-            }
-          }
-        } catch (streamError) {
-          // Fallback to non-streaming
-          setStreaming(false);
-          setStreamingContent("");
-
-          const result = await sendChatMessage(
-            messageText,
-            sessionId,
-            activeAccountId ?? undefined,
-          );
-          addMessage({
-            role: "assistant",
-            content: result.reply,
-            toolsUsed: result.toolsUsed,
-          });
-
-          if (result.toolsUsed.includes("transfer_funds")) {
-            await refreshAccounts();
-          }
-        }
-      } catch (error) {
-        setStreaming(false);
-        addMessage({
-          role: "assistant",
-          content:
-            "I'm having trouble connecting to the server. Please check that the backend is running and try again.",
-        });
-      } finally {
-        setLoading(false);
-        setActiveTool(null);
-      }
-    },
-    [inputText, isLoading, isStreaming, sessionId],
-  );
-
-  const handleAccountSelect = useCallback(
-    async (accountIndex: number) => {
-      const selectedAccount = pendingAccounts?.find(
-        (a) => a.index === accountIndex,
-      );
-      if (!selectedAccount || !pendingAccounts) return;
-
-      // Find the account_id from the local accounts store by matching name
-      const matchedAccount = accounts.find(
-        (a) => a.name === selectedAccount.account_name,
-      );
-
-      if (matchedAccount) {
-        setActiveAccount(matchedAccount.id);
-        setPendingAccounts(null);
-
-        // Re-send the last user message with the selected account
-        const lastUserMessage = [...messages]
-          .reverse()
-          .find((m) => m.role === "user");
-        if (lastUserMessage) {
-          setLoading(true);
-          setStreaming(true);
-          setStreamingContent("");
-
-          try {
-            await streamChatMessage(
-              lastUserMessage.content,
-              sessionId,
-              (token) => {
-                appendStreamingContent(token);
-              },
-              (toolName) => {
-                setActiveTool(toolName);
-              },
-              (tools) => {
-                finalizeStreamingMessage(tools);
-                if (tools.includes("transfer_funds")) {
-                  refreshAccounts();
-                }
-              },
-              (error) => {
-                console.warn("Stream error:", error);
-              },
-              matchedAccount.id,
-            );
-          } catch (error) {
-            console.error("Re-send error:", error);
-          } finally {
-            setLoading(false);
-            setActiveTool(null);
-            setStreaming(false);
-          }
-        }
-      }
-    },
-    [pendingAccounts, accounts, messages, sessionId],
-  );
-
-  const handleUploadPDF = useCallback(async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setInputText("");
+    addMessage({ role: "user", content: messageText });
+    setLoading(true);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) return;
-
-      const file = result.assets[0];
-      setIsUploading(true);
-
-      addMessage({
-        role: "user",
-        content: `📄 Uploading "${file.name}"...`,
-      });
-
-      const uploadResult = await uploadDocument(
-        file.uri,
-        file.name,
-        file.mimeType || "application/pdf",
-      );
-
+      const result = await sendChatMessage(messageText, sessionId);
       addMessage({
         role: "assistant",
-        content: `✅ Document **"${uploadResult.name}"** uploaded successfully!\n\n📊 **${uploadResult.pages} pages** processed and indexed.\n\nYou can now ask me questions about this document. Try:\n- "Summarize this document"\n- "What are the main topics?"\n- "What does it say about [specific topic]?"`,
+        content: result.reply,
+        toolsUsed: result.toolsUsed,
       });
-    } catch (error) {
+    } catch {
       addMessage({
         role: "assistant",
-        content: `❌ Failed to upload document. Please ensure the backend server is running and try again.`,
+        content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",
       });
     } finally {
-      setIsUploading(false);
+      setLoading(false);
     }
-  }, []);
+  }, [inputText, isLoading, sessionId, addMessage, setLoading]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -278,7 +95,7 @@ export default function ChatScreen() {
   }, [clearChat]);
 
   const renderItem = useCallback(
-    ({ item, index }: { item: ChatMessage; index: number }) => (
+    ({ item }: { item: ChatMessage }) => (
       <ChatBubble key={item.id} message={item} />
     ),
     [],
@@ -342,68 +159,8 @@ export default function ChatScreen() {
 
   const renderFooter = () => (
     <View>
-      {/* Account selection prompt */}
-      {pendingAccounts && (
-        <Animated.View
-          entering={FadeIn.delay(100)}
-          style={styles.accountSelectContainer}
-        >
-          <Text style={styles.accountSelectTitle}>
-            Pilih akun yang ingin Anda cek:
-          </Text>
-          <View style={styles.accountSelectList}>
-            {pendingAccounts.map((account) => (
-              <Pressable
-                key={account.index}
-                onPress={() => handleAccountSelect(account.index)}
-                style={({ pressed }) => [
-                  styles.accountSelectItem,
-                  pressed && styles.accountSelectItemPressed,
-                ]}
-              >
-                <LinearGradient
-                  colors={[Colors.accentPurple, Colors.accentTeal]}
-                  style={styles.accountSelectAvatar}
-                >
-                  <Ionicons name="card-outline" size={16} color="#fff" />
-                </LinearGradient>
-                <View style={styles.accountSelectInfo}>
-                  <Text style={styles.accountSelectName}>
-                    {account.account_name}
-                  </Text>
-                  <Text style={styles.accountSelectCurrency}>
-                    {account.currency}
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={Colors.textMuted}
-                />
-              </Pressable>
-            ))}
-          </View>
-        </Animated.View>
-      )}
-      {/* Streaming content */}
-      {isStreaming && streamingContent && (
-        <View style={styles.streamingContainer}>
-          <LinearGradient
-            colors={[Colors.accentPurple, Colors.accentTeal]}
-            style={styles.streamAvatar}
-          >
-            <Text style={styles.avatarText}>E</Text>
-          </LinearGradient>
-          <View style={styles.streamBubble}>
-            <Text style={styles.streamText}>{streamingContent}</Text>
-            <View style={styles.streamingDot} />
-          </View>
-        </View>
-      )}
       {/* Typing indicator */}
-      {(isLoading || (isStreaming && !streamingContent)) && (
-        <TypingIndicator activeTool={activeTool} />
-      )}
+      {isLoading && <TypingIndicator activeTool={null} />}
       <View style={{ height: 16 }} />
     </View>
   );
@@ -458,30 +215,6 @@ export default function ChatScreen() {
           style={styles.inputContainer}
         >
           <View style={styles.inputRow}>
-            {/* Upload PDF button */}
-            <Pressable
-              onPress={handleUploadPDF}
-              style={[
-                styles.inputAction,
-                isUploading && styles.inputActionDisabled,
-              ]}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={Colors.accentPurpleLight}
-                />
-              ) : (
-                <Ionicons
-                  name="attach-outline"
-                  size={22}
-                  color={Colors.textSecondary}
-                />
-              )}
-            </Pressable>
-
-            {/* Text input */}
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -495,11 +228,9 @@ export default function ChatScreen() {
               returnKeyType="send"
               blurOnSubmit={false}
             />
-
-            {/* Send button */}
             <Pressable
               onPress={() => sendMessage()}
-              disabled={!inputText.trim() || isLoading || isStreaming}
+              disabled={!inputText.trim() || isLoading}
               style={({ pressed }) => [
                 styles.sendBtn,
                 pressed && styles.sendBtnPressed,
@@ -750,55 +481,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textMuted,
     textAlign: "center",
-  },
-  // Account selection styles
-  accountSelectContainer: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  accountSelectTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: 10,
-  },
-  accountSelectList: {
-    gap: 8,
-  },
-  accountSelectItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-  },
-  accountSelectItemPressed: {
-    opacity: 0.7,
-  },
-  accountSelectAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accountSelectInfo: {
-    flex: 1,
-  },
-  accountSelectName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
-  accountSelectCurrency: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,9 @@ import {
   Pressable,
   RefreshControl,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import Animated, {
   FadeInDown,
   useAnimatedScrollHandler,
@@ -17,26 +17,26 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
   Extrapolation,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
-import { Colors } from '../../constants/colors';
-import { useAccountStore } from '../../store/accountStore';
-import { QuickActionType } from '../../types';
-import BalanceCard from '../../components/ui/BalanceCard';
-import QuickActions from '../../components/ui/QuickActions';
-import AccountSwitcher from '../../components/ui/AccountSwitcher';
+import { Colors } from "../../constants/colors";
+import { useAccountStore } from "../../store/accountStore";
+import { QuickActionType } from "../../types";
+import BalanceCard from "../../components/ui/BalanceCard";
+import QuickActions from "../../components/ui/QuickActions";
+import AccountSwitcher from "../../components/ui/AccountSwitcher";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 function getSapa() {
   const hour = new Date().getHours();
-  if (hour < 10) return 'Selamat pagi,';
-  if (hour < 15) return 'Selamat siang,';
-  if (hour < 18) return 'Selamat sore,';
-  return 'Selamat malam,';
+  if (hour < 10) return "Selamat pagi,";
+  if (hour < 15) return "Selamat siang,";
+  if (hour < 18) return "Selamat sore,";
+  return "Selamat malam,";
 }
 
 export default function HomeScreen() {
@@ -46,18 +46,20 @@ export default function HomeScreen() {
     accounts,
     activeAccountId,
     isLoading,
-    refresh,
     getActiveAccount,
     setActiveAccount,
+    fetchUserData,
   } = useAccountStore();
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const refresh = useCallback(() => fetchUserData(), [fetchUserData]);
 
   const scrollY = useSharedValue(0);
   const activeAccount = getActiveAccount();
-  const displayName = user?.name?.split(' ')[0]?.toUpperCase() ?? 'USER';
-
-  useEffect(() => {
-    refresh();
-  }, []);
+  const displayName = user?.name?.split(" ")[0]?.toUpperCase() ?? "USER";
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -82,14 +84,14 @@ export default function HomeScreen() {
   const handleQuickAction = useCallback(
     (type: QuickActionType) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (type === 'transfer') {
-        router.push('/transfer');
-      } else if (type === 'exchange') {
-        router.push('/(tabs)/chat');
-      } else if (type === 'cards') {
-        router.push('/(tabs)/cards');
+      if (type === "transfer") {
+        router.push("/transfer");
+      } else if (type === "exchange") {
+        router.push("/(tabs)/chat");
+      } else if (type === "cards") {
+        router.push("/(tabs)/cards");
       } else {
-        Alert.alert('Segera Hadir', 'Fitur ini akan segera tersedia!');
+        Alert.alert("Segera Hadir", "Fitur ini akan segera tersedia!");
       }
     },
     [router],
@@ -97,11 +99,11 @@ export default function HomeScreen() {
 
   const handleAIPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(tabs)/chat');
+    router.push("/(tabs)/chat");
   }, [router]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* Header */}
       <Animated.View style={[styles.header, headerStyle]}>
         <View style={styles.headerLeft}>
@@ -142,7 +144,10 @@ export default function HomeScreen() {
         {/* Kartu Saldo Aktif */}
         {activeAccount && (
           <Animated.View entering={FadeInDown.delay(80).springify()}>
-            <BalanceCard account={activeAccount} userName={user?.name ?? 'User'} />
+            <BalanceCard
+              account={activeAccount}
+              userName={user?.name ?? "User"}
+            />
           </Animated.View>
         )}
 
@@ -189,42 +194,42 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     paddingHorizontal: 24,
     paddingTop: 8,
     paddingBottom: 16,
   },
   headerLeft: { gap: 2 },
-  greeting: { fontSize: 13, color: Colors.textSecondary, fontWeight: '400' },
+  greeting: { fontSize: 13, color: Colors.textSecondary, fontWeight: "400" },
   userName: {
     fontSize: 20,
     color: Colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 0.3,
   },
   rewardsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
-    backgroundColor: 'rgba(245,158,11,0.1)',
-    borderColor: 'rgba(245,158,11,0.25)',
+    backgroundColor: "rgba(245,158,11,0.1)",
+    borderColor: "rgba(245,158,11,0.25)",
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginTop: 6,
   },
   rewardsBadgeText: {
     fontSize: 11,
     color: Colors.accentGold,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingTop: 4,
   },
@@ -245,21 +250,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scroll: { flex: 1 },
   content: { paddingTop: 4, paddingBottom: 24, gap: 24 },
   section: { paddingHorizontal: 24, gap: 12 },
   bottomPad: { height: 80 },
   aiRow: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
   },
   aiBtn: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -267,11 +272,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   aiBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 7,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  aiBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  aiBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" },
 });
