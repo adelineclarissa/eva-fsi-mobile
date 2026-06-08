@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,15 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Alert,
+  Share,
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
+import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -30,14 +33,76 @@ const parseAmount = (value: string) => {
   return parseFloat(value.replace(/\./g, "")) || 0;
 };
 
-type Step = "select" | "amount" | "confirm" | "success";
+type Step = "select" | "amount" | "confirm" | "pin" | "success";
 
 const STEP_TITLES: Record<Step, string> = {
   select: "Kirim Uang",
   amount: "Masukkan Jumlah",
   confirm: "Konfirmasi Transfer",
+  pin: "Masukkan PIN",
   success: "Transfer Terkirim!",
 };
+
+const DEFAULT_PIN = "";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PIN_INPUT_WIDTH = Math.min(SCREEN_WIDTH - 48, 360);
+
+function PinEntryStep({
+  pin,
+  setPin,
+  isLoading,
+  onConfirm,
+}: {
+  pin: string;
+  setPin: (p: string | ((prev: string) => string)) => void;
+  isLoading: boolean;
+  onConfirm: () => void;
+}) {
+  const inputRef = React.useRef<TextInput>(null);
+
+  React.useEffect(() => {
+    if (pin.length === 6 && !isLoading) {
+      onConfirm();
+    }
+  }, [pin, isLoading, onConfirm]);
+
+  return (
+    <Pressable style={styles.pinContainer} onPress={() => inputRef.current?.focus()}>
+      <View style={styles.pinCard}>
+        <View style={styles.pinHeader}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={32}
+            color={Colors.primary}
+          />
+          <Text style={styles.pinTitle}>PIN Transaksi</Text>
+          <Text style={styles.pinSubtitle}>Silakan masukkan PIN Anda</Text>
+        </View>
+
+        <View style={styles.pinDotsRow}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <View
+              key={i}
+              style={[styles.pinDot, i < pin.length ? styles.pinDotFilled : styles.pinDotEmpty]}
+            />
+          ))}
+        </View>
+
+        <TextInput
+          ref={inputRef}
+          value={pin}
+          onChangeText={(text) => setPin(text.replace(/\D/g, "").slice(0, 6))}
+          keyboardType="number-pad"
+          maxLength={6}
+          secureTextEntry
+          autoFocus
+          style={styles.pinHiddenInput}
+        />
+      </View>
+    </Pressable>
+  );
+}
 
 export default function TransferScreen() {
   const router = useRouter();
@@ -50,7 +115,11 @@ export default function TransferScreen() {
     "checking",
   );
   const [note, setNote] = useState("");
+  const [pin, setPin] = useState(DEFAULT_PIN);
   const [isLoading, setIsLoading] = useState(false);
+  const [transactionId, setTransactionId] = useState("");
+  const [transactionDate, setTransactionDate] = useState("");
+  const receiptRef = useRef<View>(null);
 
   const sourceAccount = accounts.find((a) => a.type === fromAccount);
 
@@ -80,10 +149,19 @@ export default function TransferScreen() {
     setStep("confirm");
   };
 
-  const handleConfirm = useCallback(async () => {
-    if (!selected) return;
+  const handlePinConfirm = useCallback(async () => {
+    if (!selected || pin.length !== 6) return;
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const now = new Date();
+    const txId = `TRX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${Math.floor(
+      Math.random() * 1000,
+    )
+      .toString()
+      .padStart(3, "0")}`;
+    setTransactionId(txId);
+    setTransactionDate(now.toISOString());
 
     try {
       // Local transfer - update state directly
@@ -100,7 +178,7 @@ export default function TransferScreen() {
         amount: parseAmount(amount),
         type: "debit",
         category: "transfer",
-        date: new Date().toISOString(),
+        date: now.toISOString(),
         accountId: sourceAccount?.id ?? "",
         status: "completed",
         icon: "send-outline",
@@ -112,13 +190,91 @@ export default function TransferScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [selected, amount, fromAccount, note, sourceAccount]);
+  }, [
+    selected,
+    amount,
+    fromAccount,
+    note,
+    sourceAccount,
+    pin,
+    updateBalance,
+    addTransaction,
+  ]);
+
+  const handleDownload = useCallback(async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Izin diperlukan", "Izinkan akses galeri untuk menyimpan bukti transfer.");
+        return;
+      }
+      const uri = await captureRef(receiptRef, { format: "png", quality: 1 });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert("Tersimpan!", "Bukti transfer berhasil disimpan ke galeri.");
+    } catch {
+      Alert.alert("Gagal", "Tidak dapat menyimpan bukti transfer.");
+    }
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPin(DEFAULT_PIN);
+    setStep("pin");
+  }, []);
 
   const goBack = () => {
     if (step === "select") router.back();
     else if (step === "amount") setStep("select");
     else if (step === "confirm") setStep("amount");
+    else if (step === "pin") setStep("confirm");
     else router.back();
+  };
+
+  const receiptText = useMemo(() => {
+    if (step !== "success" || !selected) return "";
+    const date = new Date(transactionDate);
+    return [
+      "=== BUKTI TRANSFER ===",
+      "",
+      `ID Transaksi: ${transactionId}`,
+      `Tanggal: ${date.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`,
+      `Waktu: ${date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`,
+      "",
+      "--------------------------",
+      `Penerima: ${selected.name}`,
+      `Rekening: ${selected.accountNumber}`,
+      `Bank: ${selected.bankName || "-"}`,
+      "",
+      `Dikirim: ${formatCurrency(parseAmount(amount))}`,
+      `Biaya: Gratis`,
+      `Total: ${formatCurrency(parseAmount(amount))}`,
+      "",
+      `Dari: ${fromAccount === "checking" ? "Rek. Utama" : "Tabungan"}`,
+      `Catatan: ${note || "-"}`,
+      "",
+      "--------------------------",
+      "Status: BERHASIL",
+      "=========================",
+    ].join("\n");
+  }, [
+    step,
+    selected,
+    transactionId,
+    transactionDate,
+    amount,
+    fromAccount,
+    note,
+  ]);
+
+  const handleShareReceipt = async () => {
+    try {
+      await Share.share({
+        message: receiptText,
+        title: "Bukti Transfer",
+      });
+    } catch (error) {
+      // User cancelled share
+    }
   };
 
   return (
@@ -137,45 +293,113 @@ export default function TransferScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {step === "success" ? (
-        <Animated.View
-          entering={ZoomIn.springify()}
-          style={styles.successContainer}
-        >
-          <LinearGradient
-            colors={[Colors.accentGreen, Colors.accentTeal]}
-            style={styles.successIcon}
+      {step === "pin" ? (
+        <PinEntryStep
+          pin={pin}
+          setPin={setPin}
+          isLoading={isLoading}
+          onConfirm={handlePinConfirm}
+        />
+      ) : step === "success" ? (
+        <View style={styles.receiptOuter}>
+          <ScrollView
+            style={styles.receiptScroll}
+            contentContainerStyle={styles.receiptScrollContent}
           >
-            <Ionicons name="checkmark" size={40} color="#fff" />
-          </LinearGradient>
-          <Text style={styles.successTitle}>Transfer Berhasil!</Text>
-          <Text style={styles.successAmount}>
-            {formatCurrency(parseAmount(amount))}
-          </Text>
-          <Text style={styles.successRecipient}>
-            dikirim ke {selected?.name}
-          </Text>
-          <View style={styles.successCard}>
-            <Text style={styles.successDetail}>ID Transaksi</Text>
-            <Text style={styles.successDetailValue}>
-              TRX{Date.now().toString().slice(-8)}
-            </Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.doneBtn,
-              pressed && styles.btnPressed,
-            ]}
-            onPress={() => router.back()}
-          >
-            <LinearGradient
-              colors={[Colors.primary, Colors.primaryLight]}
-              style={styles.doneBtnGradient}
+            <View ref={receiptRef} style={styles.receiptCard}>
+              <View style={styles.receiptCheckCircle}>
+                <Ionicons name="checkmark" size={36} color="#fff" />
+              </View>
+
+              <Text style={styles.receiptTitle}>Transfer Berhasil</Text>
+              <Text style={styles.receiptDateTime}>
+                {transactionDate
+                  ? new Date(transactionDate).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    }) +
+                    " " +
+                    new Date(transactionDate).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })
+                  : ""}
+              </Text>
+
+              <Text style={styles.receiptAmount}>
+                {formatCurrency(parseAmount(amount))}
+              </Text>
+
+              <View style={styles.receiptDivider} />
+
+              {[
+                { label: "ID Transaksi", value: transactionId },
+                {
+                  label: "Tanggal",
+                  value: transactionDate
+                    ? new Date(transactionDate).toLocaleDateString("id-ID", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      }) +
+                      " " +
+                      new Date(transactionDate).toLocaleTimeString("id-ID", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "-",
+                },
+                { label: "Nama Penerima", value: selected?.name ?? "-" },
+                { label: "Rekening Penerima", value: selected?.accountNumber ?? "-" },
+                { label: "Bank Penerima", value: selected?.bankName || "-" },
+                { label: "Jumlah Transfer", value: formatCurrency(parseAmount(amount)) },
+                { label: "Biaya Transfer", value: "Gratis", green: true },
+                { label: "Rekening Pengirim", value: sourceAccount?.accountNumber ?? "-" },
+              ].map(({ label, value, green }, i, arr) => (
+                <View
+                  key={label}
+                  style={[
+                    styles.receiptRow,
+                    i < arr.length - 1 && styles.receiptRowBorder,
+                  ]}
+                >
+                  <Text style={styles.receiptRowLabel}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.receiptRowValue,
+                      green ? { color: Colors.success } : null,
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+          <View style={styles.receiptActions}>
+            <Pressable
+              style={({ pressed }) => [styles.receiptIconBtn, pressed && styles.btnPressed]}
+              onPress={handleShareReceipt}
             >
-              <Text style={styles.doneBtnText}>Selesai</Text>
-            </LinearGradient>
-          </Pressable>
-        </Animated.View>
+              <Ionicons name="share-social-outline" size={20} color={Colors.primary} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.receiptIconBtn, pressed && styles.btnPressed]}
+              onPress={handleDownload}
+            >
+              <Ionicons name="download-outline" size={20} color={Colors.primary} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.receiptDoneBtn, pressed && styles.btnPressed]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.receiptDoneBtnText}>Selesai</Text>
+            </Pressable>
+          </View>
+        </View>
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -340,30 +564,18 @@ export default function TransferScreen() {
 
               <Pressable
                 onPress={handleConfirm}
-                disabled={isLoading}
-                style={({ pressed }) =>
-                  !isLoading && pressed && styles.btnPressed
-                }
+                style={({ pressed }) => pressed && styles.btnPressed}
               >
                 <LinearGradient
-                  colors={
-                    isLoading
-                      ? [Colors.border, Colors.border]
-                      : [Colors.primary, Colors.primaryLight]
-                  }
+                  colors={[Colors.primary, Colors.primaryLight]}
                   style={styles.continueBtn}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.continueBtnText}>
-                      Konfirmasi Transfer
-                    </Text>
-                  )}
+                  <Text style={styles.continueBtnText}>Lanjutkan</Text>
                 </LinearGradient>
               </Pressable>
             </Animated.View>
           )}
+
         </ScrollView>
       )}
     </SafeAreaView>
@@ -571,4 +783,164 @@ const styles = StyleSheet.create({
   },
   doneBtnGradient: { padding: 18, alignItems: "center" },
   doneBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+
+  // PIN styles — matches reference: white card top + gray keypad bottom
+  pinContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  pinCard: {
+    flex: 1.2,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+  pinHeader: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+  },
+  pinTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  pinSubtitle: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: "center",
+  },
+  pinDotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    marginTop: 24,
+  },
+  pinDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinDotFilled: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  pinDotEmpty: {
+    borderColor: Colors.border,
+    backgroundColor: "transparent",
+  },
+  pinHiddenInput: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+
+  // Receipt styles
+  receiptScroll: { flex: 1, backgroundColor: Colors.background },
+  receiptScrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
+  receiptCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 24,
+    alignItems: "center",
+  },
+  receiptCheckCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.accentTeal,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  receiptTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.primary,
+    marginBottom: 4,
+  },
+  receiptDateTime: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginBottom: 16,
+  },
+  receiptAmount: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: Colors.primary,
+    marginBottom: 20,
+  },
+  receiptDivider: {
+    width: "100%",
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+    marginBottom: 4,
+  },
+  receiptRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    width: "100%",
+    paddingVertical: 12,
+  },
+  receiptRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  receiptRowLabel: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    flex: 1,
+  },
+  receiptRowValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "right",
+  },
+  receiptOuter: {
+    flex: 1,
+  },
+  receiptActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  receiptIconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  receiptDoneBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  receiptDoneBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
 });
