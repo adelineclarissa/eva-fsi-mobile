@@ -127,12 +127,18 @@ export default function TransferScreen() {
   const [fromAccount, setFromAccount] = useState<"checking" | "savings">(
     "checking",
   );
+  const [sourceAccountId, setSourceAccountId] = useState<string | null>(null);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [transactionType, setTransactionType] = useState<
+    "immediate" | "scheduled" | "recurring"
+  >("immediate");
   const [note, setNote] = useState("");
   const [pin, setPin] = useState(DEFAULT_PIN);
   const [isLoading, setIsLoading] = useState(false);
   const [transactionId, setTransactionId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
   const receiptRef = useRef<View>(null);
+  const initializedRef = useRef(false);
 
   // Pre-fill from chat navigation params
   useEffect(() => {
@@ -156,7 +162,37 @@ export default function TransferScreen() {
     }
   }, [searchParams, beneficiaries]);
 
-  const sourceAccount = accounts.find((a) => a.type === fromAccount);
+  useEffect(() => {
+    if (!accounts.length || initializedRef.current) return;
+
+    const requestedType = searchParams.fromAccount as
+      | "checking"
+      | "savings"
+      | undefined;
+    const preferredAccount =
+      accounts.find((account) => account.type === requestedType) ??
+      accounts.find((account) => account.type === "checking") ??
+      accounts[0];
+
+    if (preferredAccount) {
+      setSourceAccountId(preferredAccount.id);
+      setFromAccount(preferredAccount.type);
+      initializedRef.current = true;
+    }
+  }, [accounts, searchParams.fromAccount]);
+
+  const sourceAccount = useMemo(
+    () =>
+      accounts.find((account) => account.id === sourceAccountId) ??
+      accounts.find((account) => account.type === fromAccount) ??
+      accounts[0],
+    [accounts, sourceAccountId, fromAccount],
+  );
+
+  const otherAccounts = useMemo(
+    () => accounts.filter((account) => account.id !== sourceAccountId),
+    [accounts, sourceAccountId],
+  );
 
   const handleSelectBeneficiary = (b: Beneficiary) => {
     Haptics.selectionAsync();
@@ -287,7 +323,7 @@ export default function TransferScreen() {
       `Biaya: Gratis`,
       `Total: ${formatCurrency(parseAmount(amount))}`,
       "",
-      `Dari: ${fromAccount === "checking" ? "Rek. Utama" : "Tabungan"}`,
+      `Dari: ${sourceAccount?.name ?? (fromAccount === "checking" ? "Rek. Utama" : "Tabungan")}`,
       `Catatan: ${note || "-"}`,
       "",
       "--------------------------",
@@ -317,19 +353,42 @@ export default function TransferScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={goBack}
-          style={({ pressed }) => [
-            styles.backBtn,
-            pressed && styles.btnPressed,
-          ]}
+      {step === "amount" ? (
+        <LinearGradient
+          colors={[Colors.primary, Colors.primaryLight]}
+          style={styles.amountHeader}
         >
-          <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
-        <View style={styles.backBtn} />
-      </View>
+          <Pressable
+            onPress={goBack}
+            style={({ pressed }) => [
+              styles.backBtnLight,
+              pressed && styles.btnPressed,
+            ]}
+          >
+            <Ionicons name="arrow-back" size={20} color="#fff" />
+          </Pressable>
+          <Text style={styles.headerTitleLight}>
+            {selected
+              ? `Transfer to ${selected.bankName || "BCA"} Account`
+              : "Transfer to Account"}
+          </Text>
+          <View style={styles.backBtnLight} />
+        </LinearGradient>
+      ) : (
+        <View style={styles.header}>
+          <Pressable
+            onPress={goBack}
+            style={({ pressed }) => [
+              styles.backBtn,
+              pressed && styles.btnPressed,
+            ]}
+          >
+            <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
+          <View style={styles.backBtn} />
+        </View>
+      )}
 
       {step === "pin" ? (
         <PinEntryStep
@@ -515,75 +574,155 @@ export default function TransferScreen() {
               entering={FadeInDown.springify()}
               style={styles.stepContainer}
             >
-              <View style={styles.recipientInfo}>
-                <Text style={styles.recipientName}>ke {selected?.name}</Text>
-                <Text style={styles.bAccount}>{selected?.accountNumber}</Text>
-              </View>
+              <View style={styles.amountCard}>
+                <View style={styles.recipientInfo}>
+                  <Text style={styles.recipientName}>ke {selected?.name}</Text>
+                  <Text style={styles.bAccount}>{selected?.accountNumber}</Text>
+                </View>
 
-              <View style={styles.amountInput}>
-                <Text style={styles.currencySymbol}>Rp</Text>
-                <TextInput
-                  style={styles.amountText}
-                  value={amount}
-                  onChangeText={(text) => setAmount(formatAmount(text))}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
-                  autoFocus
-                />
-              </View>
+                <View style={styles.amountInputBox}>
+                  <Text style={styles.amountLabel}>Jumlah transfer</Text>
+                  <View style={styles.amountInputRow}>
+                    <Text style={styles.currencySymbol}>Rp</Text>
+                    <TextInput
+                      style={styles.amountText}
+                      value={amount}
+                      onChangeText={(text) => setAmount(formatAmount(text))}
+                      placeholder="0"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="numeric"
+                      autoFocus
+                    />
+                  </View>
+                  <Text style={styles.balanceHint}>
+                    Tersedia: {formatCurrency(sourceAccount?.balance ?? 0)}
+                  </Text>
+                </View>
 
-              <Text style={styles.balanceHint}>
-                Tersedia: {formatCurrency(sourceAccount?.balance ?? 0)}
-              </Text>
-
-              <View style={styles.accountSelector}>
-                {(["checking", "savings"] as const).map((type) => {
-                  const acc = accounts.find((a) => a.type === type);
-                  const label = type === "checking" ? "Rek. Utama" : "Tabungan";
-                  return (
+                <View style={styles.fundCard}>
+                  <View style={styles.fundCardHeader}>
+                    <View>
+                      <Text style={styles.fundCardLabel}>Source of Fund</Text>
+                      <Text style={styles.fundCardTitle}>
+                        {sourceAccount?.name ?? "Pilih rekening"}
+                      </Text>
+                    </View>
                     <Pressable
-                      key={type}
-                      style={({ pressed }) => [
-                        styles.accountOption,
-                        fromAccount === type && styles.accountOptionActive,
-                        pressed && styles.btnPressed,
+                      onPress={() => setShowAccountDropdown((prev) => !prev)}
+                      style={styles.chevronBtn}
+                    >
+                      <Ionicons
+                        name={
+                          showAccountDropdown ? "chevron-up" : "chevron-down"
+                        }
+                        size={18}
+                        color={Colors.primary}
+                      />
+                    </Pressable>
+                  </View>
+                  <Text style={styles.fundCardMeta}>
+                    {sourceAccount?.accountNumber ?? "-"} •{" "}
+                    {sourceAccount?.currency ?? "IDR"}
+                  </Text>
+
+                  {showAccountDropdown && otherAccounts.length > 0 && (
+                    <View style={styles.accountDropdown}>
+                      {otherAccounts.map((account) => (
+                        <Pressable
+                          key={account.id}
+                          style={({ pressed }) => [
+                            styles.accountDropdownItem,
+                            pressed && styles.accountDropdownItemPressed,
+                          ]}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setSourceAccountId(account.id);
+                            setFromAccount(account.type);
+                            setShowAccountDropdown(false);
+                          }}
+                        >
+                          <View style={styles.accountDropdownInner}>
+                            <View
+                              style={[
+                                styles.accountDropdownIcon,
+                                {
+                                  backgroundColor:
+                                    account.color ?? Colors.primary,
+                                },
+                              ]}
+                            >
+                              <Ionicons name="card" size={18} color="#fff" />
+                            </View>
+                            <View style={styles.accountDropdownTextContainer}>
+                              <Text style={styles.accountDropdownName}>
+                                {account.name}
+                              </Text>
+                              <Text style={styles.accountDropdownNumber}>
+                                {account.accountNumber.replace(
+                                  /(\d{3})(\d{3})(\d{4})/,
+                                  "$1 - $2 - $3",
+                                )}
+                                {" • "}
+                                {account.currency}
+                              </Text>
+                            </View>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.transactionTypeRow}>
+                  {[
+                    { key: "immediate", label: "IMMEDIATE" },
+                    { key: "scheduled", label: "SCHEDULED" },
+                    { key: "recurring", label: "RECURRING" },
+                  ].map((item) => (
+                    <Pressable
+                      key={item.key}
+                      onPress={() =>
+                        setTransactionType(item.key as typeof transactionType)
+                      }
+                      style={[
+                        styles.transactionTypeChip,
+                        transactionType === item.key &&
+                          styles.transactionTypeChipActive,
                       ]}
-                      onPress={() => setFromAccount(type)}
                     >
                       <Text
                         style={[
-                          styles.accountOptionText,
-                          fromAccount === type &&
-                            styles.accountOptionTextActive,
+                          styles.transactionTypeChipText,
+                          transactionType === item.key &&
+                            styles.transactionTypeChipTextActive,
                         ]}
                       >
-                        {label}: {formatCurrency(acc?.balance ?? 0)}
+                        {item.label}
                       </Text>
                     </Pressable>
-                  );
-                })}
-              </View>
+                  ))}
+                </View>
 
-              <TextInput
-                style={styles.noteInput}
-                value={note}
-                onChangeText={setNote}
-                placeholder="Tambahkan catatan (opsional)"
-                placeholderTextColor={Colors.textMuted}
-              />
+                <TextInput
+                  style={styles.noteInput}
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Tambahkan catatan (opsional)"
+                  placeholderTextColor={Colors.textMuted}
+                />
 
-              <Pressable
-                onPress={handleAmountContinue}
-                style={({ pressed }) => pressed && styles.btnPressed}
-              >
-                <LinearGradient
-                  colors={[Colors.primary, Colors.primaryLight]}
-                  style={styles.continueBtn}
+                <Pressable
+                  onPress={handleAmountContinue}
+                  style={({ pressed }) => pressed && styles.btnPressed}
                 >
-                  <Text style={styles.continueBtnText}>Lanjutkan</Text>
-                </LinearGradient>
-              </Pressable>
+                  <LinearGradient
+                    colors={[Colors.primary, Colors.primaryLight]}
+                    style={styles.continueBtn}
+                  >
+                    <Text style={styles.continueBtnText}>Lanjutkan</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
             </Animated.View>
           )}
 
@@ -667,6 +806,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: { fontSize: 17, fontWeight: "700", color: Colors.textPrimary },
+  amountHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  backBtnLight: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitleLight: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
   scroll: { flex: 1 },
   content: { padding: 24 },
   stepContainer: { gap: 12 },
@@ -716,7 +876,34 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   recipientName: { fontSize: 17, fontWeight: "600", color: Colors.textPrimary },
+  amountCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 18,
+    gap: 14,
+  },
   amountInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  amountInputBox: {
+    backgroundColor: Colors.background,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    gap: 6,
+  },
+  amountLabel: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: "600",
+  },
+  amountInputRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -736,6 +923,115 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   balanceHint: { textAlign: "center", fontSize: 13, color: Colors.textMuted },
+  fundCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    gap: 8,
+  },
+  fundCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  fundCardLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  fundCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginTop: 4,
+  },
+  fundCardMeta: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  chevronBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  accountDropdown: {
+    gap: 10,
+    marginTop: 4,
+  },
+  accountDropdownItem: {
+    borderRadius: 18,
+  },
+  accountDropdownItemPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  accountDropdownInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 16,
+  },
+  accountDropdownIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  accountDropdownTextContainer: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "center",
+  },
+  accountDropdownName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  accountDropdownNumber: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  transactionTypeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  transactionTypeChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.background,
+  },
+  transactionTypeChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: `${Colors.primary}12`,
+  },
+  transactionTypeChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    letterSpacing: 0.8,
+  },
+  transactionTypeChipTextActive: {
+    color: Colors.primary,
+  },
   accountSelector: { flexDirection: "row", gap: 10 },
   accountOption: {
     flex: 1,
