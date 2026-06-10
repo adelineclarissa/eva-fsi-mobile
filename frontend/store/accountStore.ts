@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import { Account, Transaction, Beneficiary, UserProfile } from "../types";
 import { MOCK_TRANSACTIONS, MOCK_BENEFICIARIES } from "../constants/mockData";
-import { fetchUserAccounts, fetchUserProfile, RawAccount } from "../services/bankApi";
+import {
+  fetchUserAccounts,
+  fetchUserProfile,
+  RawAccount,
+} from "../services/bankApi";
 
 const ACCOUNT_COLORS = ["#1B3D7A", "#10B981", "#8B5CF6", "#F59E0B"];
 
@@ -28,12 +32,25 @@ interface AccountStore {
 
 function mapRawAccount(raw: RawAccount, index: number): Account {
   const rawNumber = String(raw.card_number ?? raw.account_number ?? "");
-  const masked = rawNumber.length > 4 ? `****${rawNumber.slice(-4)}` : rawNumber;
+  const masked =
+    rawNumber.length > 4 ? `****${rawNumber.slice(-4)}` : rawNumber;
   const type = raw.account_type === "savings" ? "savings" : "checking";
+  const lastFour = rawNumber.slice(-4);
+
+  const accountNameByDigits: Record<string, string> = {
+    "1111": "Tabungan Utama",
+    "4444": "Tabungan Deposito",
+    "5555": "Tabungan Darurat",
+  };
+
+  const fallbackName =
+    (raw.account_name as string | undefined)?.trim() ||
+    (type === "savings" ? "Tabungan" : "Tabungan Utama");
+
   return {
     id: raw.account_id,
     type,
-    name: (raw.account_name as string) ?? (type === "savings" ? "Tabungan" : "Tabungan Utama"),
+    name: accountNameByDigits[lastFour] ?? fallbackName,
     balance: raw.balance ?? 0,
     currency: raw.currency ?? "IDR",
     accountNumber: masked,
