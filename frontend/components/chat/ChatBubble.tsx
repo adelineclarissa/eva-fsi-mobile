@@ -131,8 +131,11 @@ export default function ChatBubble({
     );
   }
 
-  const hasBeneficiaryAction =
-    message.actionPayload?.type === "beneficiary_selection";
+  const actionData =
+    message.actionPayload?.type === "beneficiary_selection"
+      ? message.actionPayload.data
+      : null;
+  const hasBeneficiaryAction = Boolean(actionData);
 
   return (
     <Animated.View
@@ -165,10 +168,10 @@ export default function ChatBubble({
         </View>
 
         {/* Beneficiary selector */}
-        {hasBeneficiaryAction && message.actionPayload.data && (
+        {hasBeneficiaryAction && actionData && (
           <BeneficiarySelector
-            matches={message.actionPayload.data.matches}
-            keyword={message.actionPayload.data.keyword}
+            matches={actionData.matches}
+            keyword={actionData.keyword}
             onSelect={onSelectBeneficiary ?? (() => {})}
             disabled={selectionDisabled}
             selectedId={selectedBeneficiaryId}

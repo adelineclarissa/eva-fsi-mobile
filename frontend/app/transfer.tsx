@@ -140,35 +140,46 @@ export default function TransferScreen() {
   const receiptRef = useRef<View>(null);
   const initializedRef = useRef(false);
 
-  // Pre-fill from chat navigation params
-  useEffect(() => {
-    const beneficiaryId = searchParams.beneficiaryId as string | undefined;
-    const paramAmount = searchParams.amount as string | undefined;
-    const paramDesc = searchParams.desc as string | undefined;
+  const beneficiaryId =
+    typeof searchParams.beneficiaryId === "string"
+      ? searchParams.beneficiaryId
+      : undefined;
+  const paramAmount =
+    typeof searchParams.amount === "string" ? searchParams.amount : undefined;
+  const paramDesc =
+    typeof searchParams.desc === "string" ? searchParams.desc : undefined;
 
-    if (beneficiaryId) {
-      const ben = beneficiaries.find((b) => b.id === beneficiaryId);
-      if (ben) {
-        setSelected(ben);
-        setStep("amount");
-      }
-    }
-    if (paramAmount) {
-      const rawDigits = paramAmount.replace(/\D/g, "");
-      setAmount(formatAmount(rawDigits));
-    }
+  // Pre-fill from chat navigation params, but only when those params actually change.
+  useEffect(() => {
+    if (!beneficiaryId) return;
+
+    const ben = beneficiaries.find((b) => b.id === beneficiaryId);
+    if (!ben) return;
+
+    setSelected((current) => (current?.id === ben.id ? current : ben));
+    setStep((current) => (current === "select" ? "amount" : current));
+  }, [beneficiaryId, beneficiaries]);
+
+  useEffect(() => {
+    if (!paramAmount) return;
+
+    const rawDigits = paramAmount.replace(/\D/g, "");
+    setAmount(formatAmount(rawDigits));
+  }, [paramAmount]);
+
+  useEffect(() => {
     if (paramDesc) {
       setNote(paramDesc);
     }
-  }, [searchParams, beneficiaries]);
+  }, [paramDesc]);
 
   useEffect(() => {
     if (!accounts.length || initializedRef.current) return;
 
-    const requestedType = searchParams.fromAccount as
-      | "checking"
-      | "savings"
-      | undefined;
+    const requestedType =
+      typeof searchParams.fromAccount === "string"
+        ? (searchParams.fromAccount as "checking" | "savings")
+        : undefined;
     const preferredAccount =
       accounts.find((account) => account.type === requestedType) ??
       accounts.find((account) => account.type === "checking") ??
