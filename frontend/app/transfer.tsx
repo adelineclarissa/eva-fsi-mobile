@@ -14,6 +14,9 @@ import {
   ScrollView,
   Alert,
   Share,
+  Modal,
+  ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import * as MediaLibrary from "expo-media-library";
@@ -30,6 +33,7 @@ import { useAccountStore } from "../store/accountStore";
 import { useChatStore } from "../store/chatStore";
 import { Beneficiary } from "../types";
 import { formatCurrency } from "../utils/formatters";
+import { reportTransaction } from "../services/fsiApi";
 
 const formatAmount = (value: string) => {
   const digits = value.replace(/\D/g, "");
@@ -122,7 +126,7 @@ export default function TransferScreen() {
   const searchParams = useLocalSearchParams();
   const { beneficiaries, accounts, addTransaction, updateBalance } =
     useAccountStore();
-  const { addMessage } = useChatStore();
+  const { addMessage, sessionId } = useChatStore();
   const [step, setStep] = useState<Step>("select");
   const [selected, setSelected] = useState<Beneficiary | null>(null);
   const [amount, setAmount] = useState("");
@@ -271,10 +275,23 @@ export default function TransferScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      addMessage({
-        role: "user",
-        content: `I completed a transfer of ${formatCurrency(parseAmount(amount))} to ${selected.name}${note ? ` (${note})` : ""}.`,
-      });
+      // Notify the FSI backend about the completed transaction
+      if (cameFromChat) {
+        try {
+          const result = await reportTransaction(sessionId, {
+            event: "transaction_completed",
+            recipientName: selected.name,
+            amount: parseAmount(amount),
+            currency: "IDR",
+            note: note || undefined,
+          });
+          if (result.reply) {
+            addMessage({ role: "assistant", content: result.reply });
+          }
+        } catch {
+          // API notification failed - transaction still succeeded locally
+        }
+      }
 
       setStep("success");
     } catch {
@@ -318,21 +335,28 @@ export default function TransferScreen() {
     setStep("pin");
   }, []);
 
-  const goBack = () => {
+  const goBack = async () => {
     // If on success page, just go back without cancel message
     if (step === "success") {
       router.back();
       return;
     }
 
-    // Before success, if came from chat, cancel transfer
-    if (cameFromChat) {
-      if (selected) {
-        addMessage({
-          role: "user",
-          content: `I cancelled the transfer to ${selected.name}.`,
+    // Before success, if came from chat, notify backend about cancellation
+    if (cameFromChat && selected) {
+      try {
+        const result = await reportTransaction(sessionId, {
+          event: "transaction_cancelled",
+          recipientName: selected.name,
+          amount: parseAmount(amount) || undefined,
         });
+        if (result.reply) {
+          addMessage({ role: "assistant", content: result.reply });
+        }
+      } catch {
+        // API notification failed - continue with navigation
       }
+
       router.back();
       return;
     }
@@ -416,7 +440,7 @@ export default function TransferScreen() {
               ? `Transfer to ${selected.bankName || "BCA"} Account`
               : "Transfer to Account"}
           </Text>
-          <View style={styles.backBtnLight} />
+          <View style={{ width: 40, height: 40 }} />
         </LinearGradient>
       ) : (
         <View style={styles.header}>
@@ -436,7 +460,7 @@ export default function TransferScreen() {
             </Pressable>
           )}
           <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
-          <View style={styles.backBtn} />
+          <View style={{ width: 40, height: 40 }} />
         </View>
       )}
 
@@ -585,6 +609,8 @@ export default function TransferScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          onScroll={() => Keyboard.dismiss()}
+          scrollEventThrottle={16}
         >
           {step === "select" && (
             <Animated.View
@@ -598,25 +624,52 @@ export default function TransferScreen() {
                     key={b.id}
                     entering={FadeInDown.delay(i * 40).springify()}
                   >
-                    <View style={styles.beneficiaryRow}>
-                      <View style={styles.bInfo}>
-                        <Text style={styles.bName} numberOfLines={1}>
-                          {b.name}
-                        </Text>
-                        <Text style={styles.bAccount} numberOfLines={1}>
-                          {b.accountNumber}
-                        </Text>
-                      </View>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.sendBtn,
-                          pressed && styles.sendBtnPressed,
-                        ]}
-                        onPress={() => handleSelectBeneficiary(b)}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.beneficiaryRow,
+                        pressed && styles.beneficiaryRowPressed,
+                      ]}
+                      onPress={() => handleSelectBeneficiary(b)}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          flex: 1,
+                          gap: 12,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                        }}
                       >
-                        <Text style={styles.sendBtnText}>Send</Text>
-                      </Pressable>
-                    </View>
+                        <View
+                          style={[
+                            styles.beneficiaryAvatar,
+                            { backgroundColor: b.color || Colors.primary },
+                          ]}
+                        >
+                          <Text style={styles.beneficiaryInitials}>
+                            {b.initials ||
+                              b.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.bInfo}>
+                          <Text style={styles.bName}>{b.name}</Text>
+                          <Text style={styles.bAccountSub}>
+                            {b.bankName || "Bank"} • {b.accountNumber}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={20}
+                          color={Colors.textMuted}
+                        />
+                      </View>
+                    </Pressable>
                     {i < beneficiaries.length - 1 && (
                       <View style={styles.bDivider} />
                     )}
@@ -648,7 +701,6 @@ export default function TransferScreen() {
                       placeholder="0"
                       placeholderTextColor={Colors.textMuted}
                       keyboardType="numeric"
-                      autoFocus
                     />
                   </View>
                   <Text style={styles.balanceHint}>
@@ -837,12 +889,50 @@ export default function TransferScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* Processing overlay */}
+      <Modal
+        visible={isLoading}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Memproses transaksi...</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -903,19 +993,48 @@ const styles = StyleSheet.create({
   beneficiaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 11,
+    paddingVertical: 12,
     paddingHorizontal: 16,
+    gap: 12,
+  },
+  beneficiaryRowPressed: {
+    backgroundColor: Colors.background,
+  },
+  beneficiaryAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  beneficiaryInitials: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
   },
   bDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colors.border,
-    marginLeft: 16,
+    marginLeft: 68,
   },
   pressed: { opacity: 0.6 },
   btnPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-  bInfo: { flex: 1, marginRight: 12 },
+  bInfo: { flex: 1, justifyContent: "center" },
+  bTextRow: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
   bName: { fontSize: 14, fontWeight: "600", color: Colors.textPrimary },
+  bAccountInline: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: Colors.textMuted,
+    marginHorizontal: 4,
+  },
   bAccount: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  bAccountSub: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
   sendBtn: {
     backgroundColor: Colors.card,
     borderWidth: 1,
