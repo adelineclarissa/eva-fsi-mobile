@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Nova Banking",
-    "slug": "nova-banking",
+    "name": "EVA Banking",
+    "slug": "eva-banking",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "nova-banking",
+    "scheme": "eva-banking",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F2F5FA",
     "splash": {
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nova.banking"
+      "bundleIdentifier": "com.eva.banking"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F2F5FA"
       },
-      "package": "com.nova.banking"
+      "package": "com.eva.banking"
     },
     "web": {
       "bundler": "metro",

@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
-    service: "Nova Banking AI Backend",
+    service: "EVA Banking AI Backend",
     timestamp: new Date().toISOString(),
     apiKeyConfigured: !!process.env.ANTHROPIC_API_KEY,
   });
@@ -47,7 +47,7 @@ app.use(
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`
-🚀 Nova Banking Backend running on port ${PORT}
+🚀 EVA Banking Backend running on port ${PORT}
 📡 Health: http://localhost:${PORT}/health
 🌐 Network: http://0.0.0.0:${PORT} (accessible from other devices)
 🤖 Chat: POST http://localhost:${PORT}/chat
