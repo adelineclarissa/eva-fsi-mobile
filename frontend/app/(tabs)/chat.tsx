@@ -176,6 +176,42 @@ export default function ChatScreen() {
     sendChat(messageText);
   }, [inputText, sendChat]);
 
+  const handleCancelTransaction = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    clearPendingSelection();
+    setSelectedBeneficiary(null);
+    setInputText("");
+
+    // Send cancellation context to the bot without showing a user message bubble
+    const cancelPrompt =
+      'User sebelumnya berniat melakukan transaksi, namun belum ada eksekusi. Dengan menekan "batalkan transaksi", user membatalkan niat tersebut (bukan transaksi yang sudah terjadi). Hentikan konteks transaksi, jangan asumsi user masih ingin bertransaksi, dan tanyakan kembali apakah ada yang bisa dibantu.';
+
+    setLoading(true);
+    sendChatMessage(cancelPrompt, sessionId)
+      .then((result) => {
+        addMessage({
+          role: "assistant",
+          content: result.reply,
+          toolsUsed: result.toolsUsed,
+        });
+      })
+      .catch(() => {
+        addMessage({
+          role: "assistant",
+          content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [
+    clearPendingSelection,
+    setSelectedBeneficiary,
+    addMessage,
+    setLoading,
+    sessionId,
+  ]);
+
   const handleCapabilityTap = useCallback(
     (prompt: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -383,48 +419,66 @@ export default function ChatScreen() {
           entering={SlideInUp.springify()}
           style={styles.inputContainer}
         >
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Tanya EVA apa saja..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              maxLength={500}
-              onSubmitEditing={() => sendMessage()}
-              returnKeyType="send"
-              blurOnSubmit={false}
-            />
+          {pendingSelection ? (
             <Pressable
-              onPress={() => sendMessage()}
-              disabled={!inputText.trim() || isLoading}
+              onPress={handleCancelTransaction}
               style={({ pressed }) => [
-                styles.sendBtn,
-                pressed && styles.sendBtnPressed,
+                styles.cancelBtn,
+                pressed && styles.cancelBtnPressed,
               ]}
             >
               <LinearGradient
-                colors={
-                  inputText.trim() && !isLoading
-                    ? [Colors.accentPurple, Colors.accentPurpleDark]
-                    : [Colors.border, Colors.border]
-                }
-                style={styles.sendGradient}
+                colors={[Colors.accentRose, "#E11D48"]}
+                style={styles.cancelGradient}
               >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons
-                    name="send"
-                    size={16}
-                    color={inputText.trim() ? "#fff" : Colors.textMuted}
-                  />
-                )}
+                <Ionicons name="close-circle" size={18} color="#fff" />
+                <Text style={styles.cancelText}>Batalkan Transaksi</Text>
               </LinearGradient>
             </Pressable>
-          </View>
+          ) : (
+            <View style={styles.inputRow}>
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Tanya EVA apa saja..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                maxLength={500}
+                onSubmitEditing={() => sendMessage()}
+                returnKeyType="send"
+                blurOnSubmit={false}
+              />
+              <Pressable
+                onPress={() => sendMessage()}
+                disabled={!inputText.trim() || isLoading}
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  pressed && styles.sendBtnPressed,
+                ]}
+              >
+                <LinearGradient
+                  colors={
+                    inputText.trim() && !isLoading
+                      ? [Colors.accentPurple, Colors.accentPurpleDark]
+                      : [Colors.border, Colors.border]
+                  }
+                  style={styles.sendGradient}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons
+                      name="send"
+                      size={16}
+                      color={inputText.trim() ? "#fff" : Colors.textMuted}
+                    />
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          )}
           <Text style={styles.disclaimer}>
             Powered by Claude · Responses may be inaccurate
           </Text>
@@ -612,6 +666,26 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === "ios" ? 8 : 12,
     backgroundColor: Colors.background,
     gap: 8,
+  },
+  cancelBtn: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  cancelBtnPressed: {
+    opacity: 0.85,
+  },
+  cancelGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
   },
   inputRow: {
     flexDirection: "row",
