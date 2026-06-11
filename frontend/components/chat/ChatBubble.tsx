@@ -167,13 +167,13 @@ export default function ChatBubble({
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         </View>
 
-        {/* Beneficiary selector */}
-        {hasBeneficiaryAction && actionData && (
+        {/* Beneficiary selector — hidden after selection */}
+        {hasBeneficiaryAction && actionData && !selectionDisabled && (
           <BeneficiarySelector
             matches={actionData.matches}
             keyword={actionData.keyword}
             onSelect={onSelectBeneficiary ?? (() => {})}
-            disabled={selectionDisabled}
+            disabled={false}
             selectedId={selectedBeneficiaryId}
           />
         )}

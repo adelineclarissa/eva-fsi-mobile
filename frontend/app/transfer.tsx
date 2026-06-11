@@ -27,6 +27,7 @@ import * as Haptics from "expo-haptics";
 
 import { Colors } from "../constants/colors";
 import { useAccountStore } from "../store/accountStore";
+import { useChatStore } from "../store/chatStore";
 import { Beneficiary } from "../types";
 import { formatCurrency } from "../utils/formatters";
 
@@ -121,6 +122,7 @@ export default function TransferScreen() {
   const searchParams = useLocalSearchParams();
   const { beneficiaries, accounts, addTransaction, updateBalance } =
     useAccountStore();
+  const { addMessage } = useChatStore();
   const [step, setStep] = useState<Step>("select");
   const [selected, setSelected] = useState<Beneficiary | null>(null);
   const [amount, setAmount] = useState("");
@@ -231,6 +233,8 @@ export default function TransferScreen() {
     setStep("confirm");
   };
 
+  const cameFromChat = Boolean(searchParams.beneficiaryId);
+
   const handlePinConfirm = useCallback(async () => {
     if (!selected || pin.length !== 6) return;
     setIsLoading(true);
@@ -266,6 +270,12 @@ export default function TransferScreen() {
         icon: "send-outline",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      addMessage({
+        role: "user",
+        content: `I completed a transfer of ${formatCurrency(parseAmount(amount))} to ${selected.name}${note ? ` (${note})` : ""}.`,
+      });
+
       setStep("success");
     } catch {
       Alert.alert("Transfer Gagal", "Silakan coba lagi");
@@ -281,6 +291,7 @@ export default function TransferScreen() {
     pin,
     updateBalance,
     addTransaction,
+    addMessage,
   ]);
 
   const handleDownload = useCallback(async () => {
@@ -308,8 +319,30 @@ export default function TransferScreen() {
   }, []);
 
   const goBack = () => {
-    if (step === "select") router.back();
-    else if (step === "amount") setStep("select");
+    // If on success page, just go back without cancel message
+    if (step === "success") {
+      router.back();
+      return;
+    }
+
+    // Before success, if came from chat, cancel transfer
+    if (cameFromChat) {
+      if (selected) {
+        addMessage({
+          role: "user",
+          content: `I cancelled the transfer to ${selected.name}.`,
+        });
+      }
+      router.back();
+      return;
+    }
+
+    // Normal back navigation for direct transfer access
+    if (step === "select") {
+      router.back();
+      return;
+    }
+    if (step === "amount") setStep("select");
     else if (step === "confirm") setStep("amount");
     else if (step === "pin") setStep("confirm");
     else router.back();
@@ -387,15 +420,21 @@ export default function TransferScreen() {
         </LinearGradient>
       ) : (
         <View style={styles.header}>
-          <Pressable
-            onPress={goBack}
-            style={({ pressed }) => [
-              styles.backBtn,
-              pressed && styles.btnPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
-          </Pressable>
+          {step !== "success" && (
+            <Pressable
+              onPress={goBack}
+              style={({ pressed }) => [
+                styles.backBtn,
+                pressed && styles.btnPressed,
+              ]}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={20}
+                color={Colors.textPrimary}
+              />
+            </Pressable>
+          )}
           <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
           <View style={styles.backBtn} />
         </View>
@@ -499,38 +538,45 @@ export default function TransferScreen() {
           <View style={styles.receiptActions}>
             <Pressable
               style={({ pressed }) => [
-                styles.receiptIconBtn,
-                pressed && styles.btnPressed,
+                styles.receiptIconWrapper,
+                { backgroundColor: pressed ? Colors.border : "transparent" },
               ]}
               onPress={handleShareReceipt}
             >
-              <Ionicons
-                name="share-social-outline"
-                size={20}
-                color={Colors.primary}
-              />
+              <View style={styles.receiptIconBtn}>
+                <Ionicons
+                  name="share-social-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+              </View>
             </Pressable>
+
             <Pressable
               style={({ pressed }) => [
-                styles.receiptIconBtn,
-                pressed && styles.btnPressed,
+                styles.receiptIconWrapper,
+                { backgroundColor: pressed ? Colors.border : "transparent" },
               ]}
               onPress={handleDownload}
             >
-              <Ionicons
-                name="download-outline"
-                size={20}
-                color={Colors.primary}
-              />
+              <View style={styles.receiptIconBtn}>
+                <Ionicons
+                  name="download-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+              </View>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
-                styles.receiptDoneBtn,
-                pressed && styles.btnPressed,
+                styles.receiptDoneWrapper,
+                { backgroundColor: pressed ? "#153d7a" : "transparent" },
               ]}
               onPress={() => router.back()}
             >
-              <Text style={styles.receiptDoneBtnText}>Selesai</Text>
+              <View style={styles.receiptDoneBtn}>
+                <Text style={styles.receiptDoneBtnText}>Selesai</Text>
+              </View>
             </Pressable>
           </View>
         </View>
@@ -1285,32 +1331,42 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
   },
+  receiptIconWrapper: {
+    borderRadius: 24,
+    overflow: "hidden",
+  },
   receiptIconBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#fff",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.surface,
     borderWidth: 1.5,
     borderColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+  },
+  receiptDoneWrapper: {
+    flex: 1,
+    borderRadius: 30,
+    overflow: "hidden",
   },
   receiptDoneBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 21,
+    paddingVertical: 12,
+    paddingHorizontal: 70,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#1A4FA0",
   },
   receiptDoneBtnText: {
     fontSize: 15,
     fontWeight: "700",
-    color: Colors.primary,
+    color: "#fff",
   },
 });

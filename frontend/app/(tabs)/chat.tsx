@@ -68,8 +68,11 @@ export default function ChatScreen() {
     clearChat,
     pendingSelection,
     selectedBeneficiary,
+    completedBenefCardIds,
     addBeneficiarySelectionMessage,
+    addSelectionResultMessage,
     clearPendingSelection,
+    setSelectedBeneficiary,
   } = useChatStore();
   const { beneficiaries } = useAccountStore();
 
@@ -85,7 +88,9 @@ export default function ChatScreen() {
   const handleBeneficiarySelect = useCallback(
     (beneficiary: Beneficiary) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      clearPendingSelection();
+      // Must run before clearPendingSelection so the messageId is captured
+      addSelectionResultMessage(beneficiary);
+      setSelectedBeneficiary(null);
 
       // Navigate to transfer screen with pre-filled data
       router.push({
@@ -97,71 +102,88 @@ export default function ChatScreen() {
         },
       });
     },
-    [pendingSelection, clearPendingSelection, router],
+    [pendingSelection, addSelectionResultMessage, router],
   );
 
-  const sendMessage = useCallback(async () => {
+  const sendChat = useCallback(
+    async (messageText: string) => {
+      if (isLoading) return;
+
+      addMessage({ role: "user", content: messageText });
+      setLoading(true);
+      try {
+        const result = await sendChatMessage(messageText, sessionId);
+
+        // Check if the LLM returned a transfer intent with a beneficiary name
+        const beneficiaryName = extractTransferBeneficiaryName(
+          result.actionPayload,
+        );
+
+        if (beneficiaryName) {
+          // Add a confirmation message for the transfer intent
+          const amount = result.actionPayload?.data.amount;
+          const desc = result.actionPayload?.data.desc;
+          const intentText = amount
+            ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
+            : `Transfer ke ${beneficiaryName}`;
+          addMessage({
+            role: "assistant",
+            content: intentText,
+            toolsUsed: result.toolsUsed,
+          });
+
+          // Search beneficiaries and show selection UI
+          const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
+          addBeneficiarySelectionMessage({
+            keyword: beneficiaryName,
+            matches,
+            amount: amount ? Number(amount) : undefined,
+            desc: desc ? String(desc) : undefined,
+          });
+        } else {
+          // No transfer intent — just add the normal reply
+          addMessage({
+            role: "assistant",
+            content: result.reply,
+            toolsUsed: result.toolsUsed,
+          });
+        }
+      } catch {
+        addMessage({
+          role: "assistant",
+          content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      isLoading,
+      sessionId,
+      addMessage,
+      setLoading,
+      beneficiaries,
+      addBeneficiarySelectionMessage,
+    ],
+  );
+
+  const sendMessage = useCallback(() => {
     const messageText = inputText.trim();
-    if (!messageText || isLoading) return;
+    if (!messageText) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText("");
-    addMessage({ role: "user", content: messageText });
-    setLoading(true);
-    try {
-      const result = await sendChatMessage(messageText, sessionId);
+    sendChat(messageText);
+  }, [inputText, sendChat]);
 
-      // Check if the LLM returned a transfer intent with a beneficiary name
-      const beneficiaryName = extractTransferBeneficiaryName(
-        result.actionPayload,
-      );
-
-      if (beneficiaryName) {
-        // Add a confirmation message for the transfer intent
-        const amount = result.actionPayload?.data.amount;
-        const desc = result.actionPayload?.data.desc;
-        const intentText = amount
-          ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
-          : `Transfer ke ${beneficiaryName}`;
-        addMessage({
-          role: "assistant",
-          content: intentText,
-          toolsUsed: result.toolsUsed,
-        });
-
-        // Search beneficiaries and show selection UI
-        const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
-        addBeneficiarySelectionMessage({
-          keyword: beneficiaryName,
-          matches,
-          amount: amount ? Number(amount) : undefined,
-          desc: desc ? String(desc) : undefined,
-        });
-      } else {
-        // No transfer intent — just add the normal reply
-        addMessage({
-          role: "assistant",
-          content: result.reply,
-          toolsUsed: result.toolsUsed,
-        });
-      }
-    } catch {
-      addMessage({
-        role: "assistant",
-        content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    inputText,
-    isLoading,
-    sessionId,
-    addMessage,
-    setLoading,
-    beneficiaries,
-    addBeneficiarySelectionMessage,
-  ]);
+  const handleCapabilityTap = useCallback(
+    (prompt: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setInputText("");
+      sendChat(prompt);
+    },
+    [sendChat],
+  );
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -182,16 +204,19 @@ export default function ChatScreen() {
   }, [clearChat]);
 
   const renderItem = useCallback(
-    ({ item }: { item: ChatMessage }) => (
-      <ChatBubble
-        key={item.id}
-        message={item}
-        onSelectBeneficiary={handleBeneficiarySelect}
-        selectionDisabled={!!selectedBeneficiary}
-        selectedBeneficiaryId={selectedBeneficiary?.id ?? null}
-      />
-    ),
-    [handleBeneficiarySelect, selectedBeneficiary],
+    ({ item }: { item: ChatMessage }) => {
+      const isCompleted = completedBenefCardIds.includes(item.id);
+      return (
+        <ChatBubble
+          key={item.id}
+          message={item}
+          onSelectBeneficiary={handleBeneficiarySelect}
+          selectionDisabled={isCompleted}
+          selectedBeneficiaryId={null}
+        />
+      );
+    },
+    [handleBeneficiarySelect, selectedBeneficiary, completedBenefCardIds],
   );
 
   const renderHeader = () => (
@@ -215,35 +240,86 @@ export default function ChatScreen() {
           </Text>
 
           <View style={styles.capabilitiesGrid}>
-            {[
-              {
-                icon: "wallet-outline",
-                label: "Cek Saldo",
-                color: Colors.accentTeal,
-              },
-              {
-                icon: "send-outline",
-                label: "Transfer Dana",
-                color: Colors.accentPurple,
-              },
-              {
-                icon: "swap-horizontal-outline",
-                label: "Cek Kurs",
-                color: Colors.accentGold,
-              },
-              {
-                icon: "document-text-outline",
-                label: "Info Produk Deposito",
-                color: Colors.accentRose,
-              },
-            ].map((cap) => (
-              <View key={cap.label} style={styles.capabilityChip}>
-                <Ionicons name={cap.icon as any} size={16} color={cap.color} />
-                <Text style={[styles.capabilityLabel, { color: cap.color }]}>
-                  {cap.label}
-                </Text>
-              </View>
-            ))}
+            <View style={styles.capabilitiesRow}>
+              {[
+                {
+                  icon: "wallet-outline",
+                  label: "Cek Saldo",
+                  prompt: "Berapa saldo rekening saya sekarang?",
+                  color: Colors.accentTeal,
+                },
+                {
+                  icon: "send-outline",
+                  label: "Transfer Dana",
+                  prompt: "Saya ingin transfer dana ke rekening lain",
+                  color: Colors.accentPurple,
+                },
+              ].map((cap) => (
+                <Pressable
+                  key={cap.label}
+                  onPress={() => handleCapabilityTap(cap.prompt)}
+                  style={({ pressed }) => [
+                    styles.capabilityButton,
+                    pressed && styles.capabilityButtonPressed,
+                  ]}
+                >
+                  <View
+                    style={[styles.capabilityChip, { borderColor: cap.color }]}
+                  >
+                    <Ionicons
+                      name={cap.icon as any}
+                      size={14}
+                      color={cap.color}
+                    />
+                    <Text
+                      style={[styles.capabilityLabel, { color: cap.color }]}
+                    >
+                      {cap.label}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.capabilitiesRow}>
+              {[
+                {
+                  icon: "swap-horizontal-outline",
+                  label: "Cek Kurs",
+                  prompt: "Berapa kurs mata uang hari ini?",
+                  color: Colors.accentGold,
+                },
+                {
+                  icon: "document-text-outline",
+                  label: "Info Produk Deposito",
+                  prompt: "Jelaskan produk deposito yang tersedia",
+                  color: Colors.accentRose,
+                },
+              ].map((cap) => (
+                <Pressable
+                  key={cap.label}
+                  onPress={() => handleCapabilityTap(cap.prompt)}
+                  style={({ pressed }) => [
+                    styles.capabilityButton,
+                    pressed && styles.capabilityButtonPressed,
+                  ]}
+                >
+                  <View
+                    style={[styles.capabilityChip, { borderColor: cap.color }]}
+                  >
+                    <Ionicons
+                      name={cap.icon as any}
+                      size={14}
+                      color={cap.color}
+                    />
+                    <Text
+                      style={[styles.capabilityLabel, { color: cap.color }]}
+                    >
+                      {cap.label}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </Animated.View>
       )}
@@ -449,21 +525,32 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   capabilitiesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
+    alignItems: "center",
+    gap: 8,
     marginTop: 12,
+    width: "100%",
+  },
+  capabilitiesRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  capabilityButton: {
+    minWidth: 0,
+  },
+  capabilityButtonPressed: {
+    opacity: 0.7,
   },
   capabilityChip: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
     borderRadius: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 7,
   },
   capabilityLabel: {

@@ -19,6 +19,7 @@ interface ChatStore {
   activeTool: string | null;
   pendingSelection: PendingBeneficiarySelection | null;
   selectedBeneficiary: Beneficiary | null;
+  completedBenefCardIds: string[]; // message IDs of benef cards already selected
 
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   appendToLastMessage: (content: string) => void;
@@ -51,6 +52,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeTool: null,
   pendingSelection: null,
   selectedBeneficiary: null,
+  completedBenefCardIds: [],
 
   addMessage: (message) =>
     set((state) => ({
@@ -117,6 +119,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       activeTool: null,
       pendingSelection: null,
       selectedBeneficiary: null,
+      completedBenefCardIds: [],
     }),
 
   generateSessionId: () => set({ sessionId: createSessionId() }),
@@ -160,6 +163,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   addSelectionResultMessage: (beneficiary) => {
+    const { pendingSelection } = get();
+    const completedId = pendingSelection?.messageId;
     set((state) => ({
       messages: [
         ...state.messages,
@@ -173,6 +178,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       ],
       pendingSelection: null,
       selectedBeneficiary: beneficiary,
+      completedBenefCardIds: completedId
+        ? [...state.completedBenefCardIds, completedId]
+        : state.completedBenefCardIds,
     }));
   },
 }));
