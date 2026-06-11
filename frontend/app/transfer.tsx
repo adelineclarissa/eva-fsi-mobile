@@ -47,7 +47,7 @@ const parseAmount = (value: string) => {
 type Step = "select" | "amount" | "confirm" | "pin" | "success";
 
 const STEP_TITLES: Record<Step, string> = {
-  select: "Kirim Uang",
+  select: "Transfer Dana",
   amount: "Masukkan Jumlah",
   confirm: "Konfirmasi Transfer",
   pin: "Masukkan PIN",
@@ -625,50 +625,54 @@ export default function TransferScreen() {
                     entering={FadeInDown.delay(i * 40).springify()}
                   >
                     <Pressable
-                      style={({ pressed }) => [
-                        styles.beneficiaryRow,
-                        pressed && styles.beneficiaryRowPressed,
-                      ]}
+                      style={styles.beneficiaryRow}
                       onPress={() => handleSelectBeneficiary(b)}
                     >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          flex: 1,
-                          gap: 12,
-                          paddingVertical: 12,
-                          paddingHorizontal: 16,
-                        }}
-                      >
+                      {({ pressed }) => (
                         <View
-                          style={[
-                            styles.beneficiaryAvatar,
-                            { backgroundColor: b.color || Colors.primary },
-                          ]}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            flex: 1,
+                            width: "100%",
+                            alignSelf: "stretch",
+                            gap: 12,
+                            paddingVertical: 12,
+                            paddingHorizontal: 16,
+                            backgroundColor: pressed
+                              ? Colors.border
+                              : "transparent",
+                          }}
                         >
-                          <Text style={styles.beneficiaryInitials}>
-                            {b.initials ||
-                              b.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .slice(0, 2)
-                                .toUpperCase()}
-                          </Text>
+                          <View
+                            style={[
+                              styles.beneficiaryAvatar,
+                              { backgroundColor: b.color || Colors.primary },
+                            ]}
+                          >
+                            <Text style={styles.beneficiaryInitials}>
+                              {b.initials ||
+                                b.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.bInfo}>
+                            <Text style={styles.bName}>{b.name}</Text>
+                            <Text style={styles.bAccountSub}>
+                              {b.bankName || "Bank"} • {b.accountNumber}
+                            </Text>
+                          </View>
+                          <Ionicons
+                            name="chevron-forward"
+                            size={20}
+                            color={Colors.textMuted}
+                          />
                         </View>
-                        <View style={styles.bInfo}>
-                          <Text style={styles.bName}>{b.name}</Text>
-                          <Text style={styles.bAccountSub}>
-                            {b.bankName || "Bank"} • {b.accountNumber}
-                          </Text>
-                        </View>
-                        <Ionicons
-                          name="chevron-forward"
-                          size={20}
-                          color={Colors.textMuted}
-                        />
-                      </View>
+                      )}
                     </Pressable>
                     {i < beneficiaries.length - 1 && (
                       <View style={styles.bDivider} />
@@ -993,17 +997,16 @@ const styles = StyleSheet.create({
   beneficiaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    width: "100%",
     gap: 12,
   },
   beneficiaryRowPressed: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.border,
   },
   beneficiaryAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
