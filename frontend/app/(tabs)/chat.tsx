@@ -72,6 +72,7 @@ export default function ChatScreen() {
     addBeneficiarySelectionMessage,
     addSelectionResultMessage,
     clearPendingSelection,
+    cancelPendingSelection,
     setSelectedBeneficiary,
   } = useChatStore();
   const { beneficiaries } = useAccountStore();
@@ -178,7 +179,7 @@ export default function ChatScreen() {
 
   const handleCancelTransaction = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    clearPendingSelection();
+    cancelPendingSelection();
     setSelectedBeneficiary(null);
     setInputText("");
 
@@ -205,7 +206,7 @@ export default function ChatScreen() {
         setLoading(false);
       });
   }, [
-    clearPendingSelection,
+    cancelPendingSelection,
     setSelectedBeneficiary,
     addMessage,
     setLoading,

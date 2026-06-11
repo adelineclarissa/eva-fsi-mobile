@@ -57,7 +57,7 @@ const TOOL_LABELS: Record<
 };
 
 const markdownStyles = {
-  body: { color: "#000", fontSize: 15, lineHeight: 22 },
+  body: { color: "#000", fontSize: 15, lineHeight: 22, selectable: true },
   paragraph: { marginBottom: 4 },
   strong: { fontWeight: "700" as const, color: "#000" },
   em: { fontStyle: "italic" as const },
@@ -124,7 +124,9 @@ export default function ChatBubble({
           end={{ x: 1, y: 1 }}
           style={styles.userBubble}
         >
-          <Text style={styles.userText}>{message.content}</Text>
+          <Text style={styles.userText} selectable>
+            {message.content}
+          </Text>
         </LinearGradient>
         <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
       </Animated.View>

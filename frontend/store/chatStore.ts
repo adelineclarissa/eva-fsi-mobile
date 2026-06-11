@@ -33,6 +33,7 @@ interface ChatStore {
   generateSessionId: () => void;
   setPendingSelection: (selection: PendingBeneficiarySelection | null) => void;
   clearPendingSelection: () => void;
+  cancelPendingSelection: () => void;
   setSelectedBeneficiary: (beneficiary: Beneficiary | null) => void;
   addBeneficiarySelectionMessage: (
     data: BeneficiarySelectionData & { amount?: number; desc?: string },
@@ -127,6 +128,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setPendingSelection: (pendingSelection) => set({ pendingSelection }),
 
   clearPendingSelection: () => set({ pendingSelection: null }),
+
+  cancelPendingSelection: () => {
+    const { pendingSelection } = get();
+    const messageIdToRemove = pendingSelection?.messageId;
+    set((state) => ({
+      pendingSelection: null,
+      messages: messageIdToRemove
+        ? state.messages.filter((m) => m.id !== messageIdToRemove)
+        : state.messages,
+    }));
+  },
 
   setSelectedBeneficiary: (selectedBeneficiary) => set({ selectedBeneficiary }),
 
