@@ -56,6 +56,8 @@ function extractTransferBeneficiaryName(
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const suggestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const router = useRouter();
@@ -84,6 +86,41 @@ export default function ChatScreen() {
         () => flatListRef.current?.scrollToEnd({ animated: true }),
         100,
       );
+    }
+  }, [messages.length]);
+
+  // Show suggestions 3 seconds after an assistant reply, unless user replies first
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    const shouldTrigger =
+      !isLoading && !pendingSelection && lastMessage?.role === "assistant";
+
+    if (shouldTrigger) {
+      // Clear any existing timer
+      if (suggestionTimerRef.current) {
+        clearTimeout(suggestionTimerRef.current);
+      }
+      setSuggestionsVisible(false);
+      suggestionTimerRef.current = setTimeout(() => {
+        setSuggestionsVisible(true);
+      }, 3000);
+    }
+
+    return () => {
+      if (suggestionTimerRef.current) {
+        clearTimeout(suggestionTimerRef.current);
+      }
+    };
+  }, [messages.length, isLoading, pendingSelection]);
+
+  // Hide suggestions when user sends a new message
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === "user") {
+      setSuggestionsVisible(false);
+      if (suggestionTimerRef.current) {
+        clearTimeout(suggestionTimerRef.current);
+      }
     }
   }, [messages.length]);
 
@@ -263,120 +300,126 @@ export default function ChatScreen() {
     ],
   );
 
-  const renderHeader = () => (
-    <View>
-      {/* Welcome screen for empty state */}
-      {messages.length === 0 && (
-        <Animated.View
-          entering={FadeIn.delay(300)}
-          style={styles.welcomeContainer}
-        >
-          <LinearGradient
-            colors={[Colors.accentPurple, Colors.accentTeal]}
-            style={styles.welcomeAvatar}
+  const renderHeader = useCallback(
+    () => (
+      <View>
+        {/* Welcome screen for empty state */}
+        {messages.length === 0 && (
+          <Animated.View
+            entering={FadeIn.delay(300)}
+            style={styles.welcomeContainer}
           >
-            <Ionicons name="sparkles" size={32} color="#fff" />
-          </LinearGradient>
-          <Text style={styles.welcomeTitle}>Hi, {user?.name || "there"}</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Bagaimana saya dapat membantu {"\n"}kebutuhan perbankan anda hari
-            ini?
-          </Text>
+            <LinearGradient
+              colors={[Colors.accentPurple, Colors.accentTeal]}
+              style={styles.welcomeAvatar}
+            >
+              <Ionicons name="sparkles" size={32} color="#fff" />
+            </LinearGradient>
+            <Text style={styles.welcomeTitle}>Hi, {user?.name || "there"}</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Bagaimana saya dapat membantu {"\n"}kebutuhan perbankan anda hari
+              ini?
+            </Text>
 
-          <View style={styles.capabilitiesGrid}>
-            <View style={styles.capabilitiesRow}>
-              {[
-                {
-                  icon: "wallet-outline",
-                  label: "Cek Saldo",
-                  prompt: "Berapa saldo rekening saya sekarang?",
-                  color: Colors.accentTeal,
-                },
-                {
-                  icon: "send-outline",
-                  label: "Transfer Dana",
-                  prompt: "Saya ingin transfer dana ke rekening lain",
-                  color: Colors.accentPurple,
-                },
-              ].map((cap) => (
-                <Pressable
-                  key={cap.label}
-                  onPress={() => handleCapabilityTap(cap.prompt)}
-                  style={({ pressed }) => [
-                    styles.capabilityButton,
-                    pressed && styles.capabilityButtonPressed,
-                  ]}
-                >
-                  <View
-                    style={[styles.capabilityChip, { borderColor: cap.color }]}
+            <View style={styles.capabilitiesGrid}>
+              <View style={styles.capabilitiesRow}>
+                {[
+                  {
+                    icon: "wallet-outline",
+                    label: "Cek Saldo",
+                    prompt: "Berapa saldo rekening saya sekarang?",
+                    color: Colors.accentTeal,
+                  },
+                  {
+                    icon: "send-outline",
+                    label: "Transfer Dana",
+                    prompt: "Saya ingin transfer dana ke rekening lain",
+                    color: Colors.accentPurple,
+                  },
+                ].map((cap) => (
+                  <Pressable
+                    key={cap.label}
+                    onPress={() => handleCapabilityTap(cap.prompt)}
+                    style={styles.capabilityButton}
                   >
-                    <Ionicons
-                      name={cap.icon as any}
-                      size={14}
-                      color={cap.color}
-                    />
-                    <Text
-                      style={[styles.capabilityLabel, { color: cap.color }]}
-                    >
-                      {cap.label}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.capabilitiesRow}>
-              {[
-                {
-                  icon: "swap-horizontal-outline",
-                  label: "Cek Kurs",
-                  prompt: "Berapa kurs mata uang hari ini?",
-                  color: Colors.accentGold,
-                },
-                {
-                  icon: "document-text-outline",
-                  label: "Info Produk Deposito",
-                  prompt: "Jelaskan produk deposito yang tersedia",
-                  color: Colors.accentRose,
-                },
-              ].map((cap) => (
-                <Pressable
-                  key={cap.label}
-                  onPress={() => handleCapabilityTap(cap.prompt)}
-                  style={({ pressed }) => [
-                    styles.capabilityButton,
-                    pressed && styles.capabilityButtonPressed,
-                  ]}
-                >
-                  <View
-                    style={[styles.capabilityChip, { borderColor: cap.color }]}
+                    {({ pressed }) => (
+                      <View
+                        style={[
+                          styles.capabilityChip,
+                          { borderColor: cap.color },
+                          pressed && styles.capabilityChipPressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name={cap.icon as any}
+                          size={14}
+                          color={cap.color}
+                        />
+                        <Text
+                          style={[styles.capabilityLabel, { color: cap.color }]}
+                        >
+                          {cap.label}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.capabilitiesRow}>
+                {[
+                  {
+                    icon: "swap-horizontal-outline",
+                    label: "Cek Kurs",
+                    prompt: "Berapa kurs mata uang hari ini?",
+                    color: Colors.accentGold,
+                  },
+                  {
+                    icon: "document-text-outline",
+                    label: "Info Produk Deposito",
+                    prompt: "Jelaskan produk deposito yang tersedia",
+                    color: Colors.accentRose,
+                  },
+                ].map((cap) => (
+                  <Pressable
+                    key={cap.label}
+                    onPress={() => handleCapabilityTap(cap.prompt)}
+                    style={styles.capabilityButton}
                   >
-                    <Ionicons
-                      name={cap.icon as any}
-                      size={14}
-                      color={cap.color}
-                    />
-                    <Text
-                      style={[styles.capabilityLabel, { color: cap.color }]}
-                    >
-                      {cap.label}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+                    {({ pressed }) => (
+                      <View
+                        style={[
+                          styles.capabilityChip,
+                          { borderColor: cap.color },
+                          pressed && styles.capabilityChipPressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name={cap.icon as any}
+                          size={14}
+                          color={cap.color}
+                        />
+                        <Text
+                          style={[styles.capabilityLabel, { color: cap.color }]}
+                        >
+                          {cap.label}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
-        </Animated.View>
-      )}
-    </View>
+          </Animated.View>
+        )}
+      </View>
+    ),
+    [messages.length, user, handleCapabilityTap],
   );
 
-  const renderFooter = () => {
+  const renderFooter = useCallback(() => {
     const lastMessage = messages[messages.length - 1];
     const showSuggestions =
-      !isLoading &&
-      messages.length > 0 &&
-      lastMessage?.role === "assistant" &&
-      !pendingSelection;
+      suggestionsVisible && lastMessage?.role === "assistant";
 
     return (
       <View>
@@ -390,7 +433,7 @@ export default function ChatScreen() {
         <View style={{ height: 16 }} />
       </View>
     );
-  };
+  }, [suggestionsVisible, messages.length, isLoading, handleCapabilityTap]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -614,8 +657,8 @@ const styles = StyleSheet.create({
   capabilityButton: {
     minWidth: 0,
   },
-  capabilityButtonPressed: {
-    opacity: 0.7,
+  capabilityChipPressed: {
+    backgroundColor: "#F1F5F9",
   },
   capabilityChip: {
     flex: 1,

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { Account, Transaction, Beneficiary, UserProfile } from "../types";
-import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS, MOCK_BENEFICIARIES } from "../constants/mockData";
+import {
+  MOCK_ACCOUNTS,
+  MOCK_TRANSACTIONS,
+  MOCK_BENEFICIARIES,
+} from "../constants/mockData";
 import {
   fetchUserAccounts,
   fetchUserProfile,
@@ -35,22 +39,17 @@ function mapRawAccount(raw: RawAccount, index: number): Account {
   const masked =
     rawNumber.length > 4 ? `****${rawNumber.slice(-4)}` : rawNumber;
   const type = raw.account_type === "savings" ? "savings" : "checking";
-  const lastFour = rawNumber.slice(-4);
 
-  const accountNameByDigits: Record<string, string> = {
-    "1111": "Tabungan Utama",
-    "4444": "Tabungan Deposito",
-    "5555": "Tabungan Darurat",
-  };
-
-  const fallbackName =
-    (raw.account_name as string | undefined)?.trim() ||
-    (type === "savings" ? "Tabungan" : "Tabungan Utama");
+  const accountName =
+    (raw.account_name as string | undefined)
+      ?.trim()
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase()) || "Tabungan Utama";
 
   return {
     id: raw.account_id,
     type,
-    name: accountNameByDigits[lastFour] ?? fallbackName,
+    name: accountName,
     balance: raw.balance ?? 0,
     currency: raw.currency ?? "IDR",
     accountNumber: masked,
@@ -80,7 +79,14 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         ? (accountsData as RawAccount[])
         : (accountsData.accounts ?? []);
 
-      const accounts = rawAccounts.map((a, i) => mapRawAccount(a, i));
+      let accounts = rawAccounts.map((a, i) => mapRawAccount(a, i));
+
+      // Sort accounts so "Tabungan Utama" is always first
+      accounts.sort((a, b) => {
+        const aIsDefault = a.name.toLowerCase() === "tabungan utama" ? 0 : 1;
+        const bIsDefault = b.name.toLowerCase() === "tabungan utama" ? 0 : 1;
+        return aIsDefault - bIsDefault;
+      });
 
       const user: UserProfile = {
         id: (profileData.user_id as string) ?? "",
@@ -91,10 +97,14 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         joinDate: (profileData.join_date as string) ?? new Date().toISOString(),
       };
 
+      const defaultAccount =
+        accounts.find((a) => a.name.toLowerCase() === "tabungan utama") ??
+        accounts[0];
+
       set({
         accounts,
         user,
-        activeAccountId: accounts[0]?.id ?? null,
+        activeAccountId: defaultAccount?.id ?? null,
         lastRefreshed: new Date().toISOString(),
       });
     } catch (error) {
