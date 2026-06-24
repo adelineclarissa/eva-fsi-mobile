@@ -75,7 +75,7 @@ export default function ChatScreen() {
     cancelPendingSelection,
     setSelectedBeneficiary,
   } = useChatStore();
-  const { beneficiaries } = useAccountStore();
+  const { beneficiaries, user } = useAccountStore();
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -270,10 +270,10 @@ export default function ChatScreen() {
           >
             <Ionicons name="sparkles" size={32} color="#fff" />
           </LinearGradient>
-          <Text style={styles.welcomeTitle}>EVA</Text>
+          <Text style={styles.welcomeTitle}>Hi, {user?.name || "there"}</Text>
           <Text style={styles.welcomeSubtitle}>
-            Asisten perbankan cerdas Anda.{"\n"}Tanya apa saja tentang keuangan
-            Anda.
+            Bagaimana saya dapat membantu {"\n"}kebutuhan perbankan anda hari
+            ini?
           </Text>
 
           <View style={styles.capabilitiesGrid}>
@@ -383,7 +383,7 @@ export default function ChatScreen() {
             <Ionicons name="sparkles" size={18} color="#fff" />
           </LinearGradient>
           <View>
-            <Text style={styles.headerTitle}>EVA</Text>
+            <Text style={styles.headerTitle}>Epsindo Virtual Assistant</Text>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>Online</Text>
@@ -481,7 +481,7 @@ export default function ChatScreen() {
             </View>
           )}
           <Text style={styles.disclaimer}>
-            Powered by Claude · Responses may be inaccurate
+            Powered by Epsindo.ai · Responses may be inaccurate
           </Text>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -653,7 +653,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   streamingDot: {
-    width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.accentPurpleLight,
@@ -664,7 +663,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 8 : 12,
+    paddingBottom: Platform.OS === "ios" ? 22 : 40,
     backgroundColor: Colors.background,
     gap: 8,
   },
