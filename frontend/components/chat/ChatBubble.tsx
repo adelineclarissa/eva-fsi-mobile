@@ -8,13 +8,14 @@ import Animated, {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
-import { Colors } from "../../constants/colors";
+import { Colors, DEV_MODE } from "../../constants/colors";
 import { ChatMessage, Beneficiary } from "../../types";
 import { formatTime } from "../../utils/formatters";
 import BeneficiarySelector from "./BeneficiarySelector";
 
 interface ChatBubbleProps {
   message: ChatMessage;
+  userName?: string;
   onSelectBeneficiary?: (beneficiary: Beneficiary) => void;
   selectionDisabled?: boolean;
   selectedBeneficiaryId?: string | null;
@@ -106,6 +107,7 @@ function ToolBadge({ toolName }: { toolName: string }) {
 
 export default function ChatBubble({
   message,
+  userName,
   onSelectBeneficiary,
   selectionDisabled = false,
   selectedBeneficiaryId = null,
@@ -118,6 +120,7 @@ export default function ChatBubble({
         entering={FadeInRight.springify()}
         style={styles.userContainer}
       >
+        {userName && <Text style={styles.userName}>{userName}</Text>}
         <LinearGradient
           colors={[Colors.accentPurple, Colors.accentPurpleDark]}
           start={{ x: 0, y: 0 }}
@@ -155,13 +158,15 @@ export default function ChatBubble({
       </View>
 
       <View style={styles.assistantContent}>
-        {/* Tool badges */}
-        {message.toolsUsed && message.toolsUsed.length > 0 && (
+        {/* Assistant name (production) or tool badges (dev only) */}
+        {DEV_MODE && message.toolsUsed && message.toolsUsed.length > 0 ? (
           <View style={styles.toolBadges}>
             {message.toolsUsed.map((tool, i) => (
               <ToolBadge key={`${tool}-${i}`} toolName={tool} />
             ))}
           </View>
+        ) : (
+          <Text style={styles.assistantName}>EVA</Text>
         )}
 
         {/* Message bubble */}
@@ -191,6 +196,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginVertical: 6,
     paddingHorizontal: 16,
+  },
+  userName: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textMuted,
+    marginBottom: 4,
+    marginRight: 12,
   },
   userBubble: {
     maxWidth: "78%",
@@ -233,6 +245,13 @@ const styles = StyleSheet.create({
   assistantContent: {
     flex: 1,
     gap: 6,
+  },
+  assistantName: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textMuted,
+    marginBottom: 4,
+    marginLeft: 4,
   },
   toolBadges: {
     flexDirection: "row",

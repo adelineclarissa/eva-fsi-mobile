@@ -1,14 +1,22 @@
-import React from 'react';
-import { ScrollView, Pressable, Text, StyleSheet, View } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import React from "react";
+import { Pressable, Text, StyleSheet, View } from "react-native";
+import Animated, { FadeInUp, Layout } from "react-native-reanimated";
+import { Colors } from "../../constants/colors";
 
 const QUICK_ACTIONS = [
-  { icon: 'wallet-outline', label: 'Cek Saldo', prompt: 'Berapa saldo rekening saya sekarang?', color: Colors.accentTeal },
-  { icon: 'send-outline', label: 'Transfer Dana', prompt: 'Saya ingin transfer dana ke rekening lain', color: Colors.accentPurple },
-  { icon: 'swap-horizontal-outline', label: 'Cek Kurs', prompt: 'Berapa kurs mata uang hari ini?', color: Colors.accentGold },
-  { icon: 'document-text-outline', label: 'Info Produk Deposito', prompt: 'Jelaskan produk deposito yang tersedia', color: Colors.accentRose },
+  {
+    label: "Apa itu deposito mudharabah?",
+    prompt: "Apa itu deposito mudharabah?",
+  },
+  { label: "Berapa kurs USD hari ini?", prompt: "Berapa kurs USD hari ini?" },
+  {
+    label: "Cek saldo rekening saya",
+    prompt: "Berapa saldo rekening saya sekarang?",
+  },
+  {
+    label: "Transfer dana",
+    prompt: "Saya ingin transfer dana ke rekening lain",
+  },
 ] as const;
 
 interface SuggestedPromptsProps {
@@ -16,64 +24,96 @@ interface SuggestedPromptsProps {
   visible: boolean;
 }
 
-export default function SuggestedPrompts({ onSelect, visible }: SuggestedPromptsProps) {
+export default function SuggestedPrompts({
+  onSelect,
+  visible,
+}: SuggestedPromptsProps) {
   if (!visible) return null;
 
   return (
-    <Animated.View entering={FadeInUp.springify()}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
-        {QUICK_ACTIONS.map((item) => (
-          <Pressable
-            key={item.label}
-            onPress={() => onSelect(item.prompt)}
-            style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
-          >
-            <View style={[styles.iconWrapper, { backgroundColor: `${item.color}18` }]}>
-              <Ionicons name={item.icon as any} size={15} color={item.color} />
-            </View>
-            <Text style={styles.chipText}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+    <Animated.View
+      entering={FadeInUp.springify()}
+      layout={Layout.springify()}
+      style={styles.wrapper}
+    >
+      <View style={styles.container}>
+        <Text style={styles.title}>Coba pertanyaan ini</Text>
+        <View style={styles.buttonsContainer}>
+          {QUICK_ACTIONS.map((item, index) => (
+            <Animated.View
+              key={item.label}
+              entering={FadeInUp.delay(100 + index * 80).springify()}
+            >
+              <Pressable
+                onPress={() => onSelect(item.prompt)}
+                style={({ pressed }) => [
+                  styles.pressable,
+                  pressed && styles.pressablePressed,
+                ]}
+              >
+                {({ pressed }) => (
+                  <View
+                    style={[styles.button, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={styles.buttonText}>{item.label}</Text>
+                  </View>
+                )}
+              </Pressable>
+            </Animated.View>
+          ))}
+        </View>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 8,
   },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  container: {
+    backgroundColor: "#DCE3EF",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    padding: 10,
+    gap: 6,
   },
-  chipPressed: {
-    backgroundColor: Colors.cardHover,
-  },
-  iconWrapper: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: {
-    fontSize: 13,
+  title: {
+    fontSize: 14,
+    fontWeight: "700",
     color: Colors.textSecondary,
-    fontWeight: '500',
+    marginBottom: 2,
+    paddingHorizontal: 4,
+  },
+  buttonsContainer: {
+    gap: 6,
+  },
+  pressable: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  pressablePressed: {
+    opacity: 0.7,
+  },
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8F9FC",
+    borderWidth: 1.5,
+    borderColor: `${Colors.primary}30`,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  buttonPressed: {
+    backgroundColor: "#D0D9E8",
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.primary,
+    textAlign: "center",
+    letterSpacing: 0.2,
   },
 });

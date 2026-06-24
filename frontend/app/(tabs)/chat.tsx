@@ -28,6 +28,7 @@ import { useRouter } from "expo-router";
 import { ChatMessage, Beneficiary } from "../../types";
 import ChatBubble from "../../components/chat/ChatBubble";
 import TypingIndicator from "../../components/chat/TypingIndicator";
+import SuggestedPrompts from "../../components/chat/SuggestedPrompts";
 import { sendChatMessage, LlmActionPayload } from "../../services/fsiApi";
 
 function searchBeneficiaries(
@@ -247,13 +248,19 @@ export default function ChatScreen() {
         <ChatBubble
           key={item.id}
           message={item}
+          userName={user?.name}
           onSelectBeneficiary={handleBeneficiarySelect}
           selectionDisabled={isCompleted}
           selectedBeneficiaryId={null}
         />
       );
     },
-    [handleBeneficiarySelect, selectedBeneficiary, completedBenefCardIds],
+    [
+      handleBeneficiarySelect,
+      selectedBeneficiary,
+      completedBenefCardIds,
+      user?.name,
+    ],
   );
 
   const renderHeader = () => (
@@ -363,13 +370,27 @@ export default function ChatScreen() {
     </View>
   );
 
-  const renderFooter = () => (
-    <View>
-      {/* Typing indicator */}
-      {isLoading && <TypingIndicator activeTool={null} />}
-      <View style={{ height: 16 }} />
-    </View>
-  );
+  const renderFooter = () => {
+    const lastMessage = messages[messages.length - 1];
+    const showSuggestions =
+      !isLoading &&
+      messages.length > 0 &&
+      lastMessage?.role === "assistant" &&
+      !pendingSelection;
+
+    return (
+      <View>
+        {/* Suggested quick replies after assistant response */}
+        <SuggestedPrompts
+          visible={showSuggestions}
+          onSelect={handleCapabilityTap}
+        />
+        {/* Typing indicator */}
+        {isLoading && <TypingIndicator activeTool={null} />}
+        <View style={{ height: 16 }} />
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
