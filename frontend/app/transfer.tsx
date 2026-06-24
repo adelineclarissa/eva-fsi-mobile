@@ -428,25 +428,27 @@ export default function TransferScreen() {
         >
           <Pressable
             onPress={goBack}
+            hitSlop={20}
             style={({ pressed }) => [
               styles.backBtnLight,
               pressed && styles.btnPressed,
             ]}
           >
-            <Ionicons name="arrow-back" size={20} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </Pressable>
           <Text style={styles.headerTitleLight}>
             {selected
               ? `Transfer to ${selected.bankName || "BCA"} Account`
               : "Transfer to Account"}
           </Text>
-          <View style={{ width: 40, height: 40 }} />
+          <View style={{ width: 56, height: 56 }} />
         </LinearGradient>
       ) : (
         <View style={styles.header}>
           {step !== "success" && (
             <Pressable
               onPress={goBack}
+              hitSlop={20}
               style={({ pressed }) => [
                 styles.backBtn,
                 pressed && styles.btnPressed,
@@ -454,13 +456,13 @@ export default function TransferScreen() {
             >
               <Ionicons
                 name="arrow-back"
-                size={20}
+                size={24}
                 color={Colors.textPrimary}
               />
             </Pressable>
           )}
           <Text style={styles.headerTitle}>{STEP_TITLES[step]}</Text>
-          <View style={{ width: 40, height: 40 }} />
+          <View style={{ width: 56, height: 56 }} />
         </View>
       )}
 
@@ -688,154 +690,162 @@ export default function TransferScreen() {
               entering={FadeInDown.springify()}
               style={styles.stepContainer}
             >
-              <View style={styles.amountCard}>
-                <View style={styles.recipientInfo}>
-                  <Text style={styles.recipientName}>ke {selected?.name}</Text>
-                  <Text style={styles.bAccount}>{selected?.accountNumber}</Text>
-                </View>
-
-                <View style={styles.amountInputBox}>
-                  <Text style={styles.amountLabel}>Jumlah transfer</Text>
-                  <View style={styles.amountInputRow}>
-                    <Text style={styles.currencySymbol}>Rp</Text>
-                    <TextInput
-                      style={styles.amountText}
-                      value={amount}
-                      onChangeText={(text) => setAmount(formatAmount(text))}
-                      placeholder="0"
-                      placeholderTextColor={Colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <Text style={styles.balanceHint}>
-                    Tersedia: {formatCurrency(sourceAccount?.balance ?? 0)}
-                  </Text>
-                </View>
-
-                <View style={styles.fundCard}>
-                  <View style={styles.fundCardHeader}>
-                    <View>
-                      <Text style={styles.fundCardLabel}>Source of Fund</Text>
-                      <Text style={styles.fundCardTitle}>
-                        {sourceAccount?.name ?? "Pilih rekening"}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() => setShowAccountDropdown((prev) => !prev)}
-                      style={styles.chevronBtn}
-                    >
-                      <Ionicons
-                        name={
-                          showAccountDropdown ? "chevron-up" : "chevron-down"
-                        }
-                        size={18}
-                        color={Colors.primary}
-                      />
-                    </Pressable>
-                  </View>
-                  <Text style={styles.fundCardMeta}>
-                    {sourceAccount?.accountNumber ?? "-"} •{" "}
-                    {sourceAccount?.currency ?? "IDR"}
-                  </Text>
-
-                  {showAccountDropdown && otherAccounts.length > 0 && (
-                    <View style={styles.accountDropdown}>
-                      {otherAccounts.map((account) => (
-                        <Pressable
-                          key={account.id}
-                          style={({ pressed }) => [
-                            styles.accountDropdownItem,
-                            pressed && styles.accountDropdownItemPressed,
-                          ]}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            setSourceAccountId(account.id);
-                            setFromAccount(account.type);
-                            setShowAccountDropdown(false);
-                          }}
-                        >
-                          <View style={styles.accountDropdownInner}>
-                            <View
-                              style={[
-                                styles.accountDropdownIcon,
-                                {
-                                  backgroundColor:
-                                    account.color ?? Colors.primary,
-                                },
-                              ]}
-                            >
-                              <Ionicons name="card" size={18} color="#fff" />
-                            </View>
-                            <View style={styles.accountDropdownTextContainer}>
-                              <Text style={styles.accountDropdownName}>
-                                {account.name}
-                              </Text>
-                              <Text style={styles.accountDropdownNumber}>
-                                {account.accountNumber.replace(
-                                  /(\d{3})(\d{3})(\d{4})/,
-                                  "$1 - $2 - $3",
-                                )}
-                                {" • "}
-                                {account.currency}
-                              </Text>
-                            </View>
-                          </View>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.transactionTypeRow}>
-                  {[
-                    { key: "immediate", label: "IMMEDIATE" },
-                    { key: "scheduled", label: "SCHEDULED" },
-                    { key: "recurring", label: "RECURRING" },
-                  ].map((item) => (
-                    <Pressable
-                      key={item.key}
-                      onPress={() =>
-                        setTransactionType(item.key as typeof transactionType)
-                      }
-                      style={[
-                        styles.transactionTypeChip,
-                        transactionType === item.key &&
-                          styles.transactionTypeChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.transactionTypeChipText,
-                          transactionType === item.key &&
-                            styles.transactionTypeChipTextActive,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <TextInput
-                  style={styles.noteInput}
-                  value={note}
-                  onChangeText={setNote}
-                  placeholder="Tambahkan catatan (opsional)"
-                  placeholderTextColor={Colors.textMuted}
-                />
-
-                <Pressable
-                  onPress={handleAmountContinue}
-                  style={({ pressed }) => pressed && styles.btnPressed}
-                >
-                  <LinearGradient
-                    colors={[Colors.primary, Colors.primaryLight]}
-                    style={styles.continueBtn}
+              {/* Recipient Identity */}
+              {selected && (
+                <View style={styles.recipientCard}>
+                  <View
+                    style={[
+                      styles.beneficiaryAvatar,
+                      { backgroundColor: selected.color || Colors.primary },
+                    ]}
                   >
-                    <Text style={styles.continueBtnText}>Lanjutkan</Text>
-                  </LinearGradient>
-                </Pressable>
+                    <Text style={styles.beneficiaryInitials}>
+                      {selected.initials ||
+                        selected.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.bInfo}>
+                    <Text style={styles.bName}>{selected.name}</Text>
+                    <Text style={styles.bAccountSub}>
+                      {selected.bankName || "Bank"} • {selected.accountNumber}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Amount Input */}
+              <View style={styles.amountCard}>
+                <View style={styles.amountRow}>
+                  <Text style={styles.currencyLabel}>IDR</Text>
+                  <TextInput
+                    style={styles.amountTextInput}
+                    value={amount}
+                    onChangeText={(text) => setAmount(formatAmount(text))}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <Text style={styles.balanceHint}>
+                  Tersedia: {formatCurrency(sourceAccount?.balance ?? 0)}
+                </Text>
               </View>
+
+              {/* Source of Fund */}
+              <View style={styles.fundCard}>
+                <View style={styles.fundCardHeader}>
+                  <View>
+                    <Text style={styles.fundCardLabel}>Source of Fund</Text>
+                    <Text style={styles.fundCardTitle}>
+                      {sourceAccount?.name ?? "Pilih rekening"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setShowAccountDropdown((prev) => !prev)}
+                    style={styles.chevronBtn}
+                  >
+                    <Ionicons
+                      name={showAccountDropdown ? "chevron-up" : "chevron-down"}
+                      size={18}
+                      color={Colors.primary}
+                    />
+                  </Pressable>
+                </View>
+                <Text style={styles.fundCardMeta}>
+                  {sourceAccount?.accountNumber ?? "-"} •{" "}
+                  {sourceAccount?.currency ?? "IDR"}
+                </Text>
+
+                {showAccountDropdown && otherAccounts.length > 0 && (
+                  <View style={styles.accountDropdown}>
+                    {otherAccounts.map((account) => (
+                      <Pressable
+                        key={account.id}
+                        style={({ pressed }) => [
+                          styles.accountDropdownItem,
+                          pressed && styles.accountDropdownItemPressed,
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setSourceAccountId(account.id);
+                          setFromAccount(account.type);
+                          setShowAccountDropdown(false);
+                        }}
+                      >
+                        <View style={styles.accountDropdownInner}>
+                          <View
+                            style={[
+                              styles.accountDropdownIcon,
+                              {
+                                backgroundColor:
+                                  account.color ?? Colors.primary,
+                              },
+                            ]}
+                          >
+                            <Ionicons name="card" size={18} color="#fff" />
+                          </View>
+                          <View style={styles.accountDropdownTextContainer}>
+                            <Text style={styles.accountDropdownName}>
+                              {account.name}
+                            </Text>
+                            <Text style={styles.accountDropdownNumber}>
+                              {account.accountNumber.replace(
+                                /(\d{3})(\d{3})(\d{4})/,
+                                "$1 - $2 - $3",
+                              )}
+                              {" • "}
+                              {account.currency}
+                            </Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Notes */}
+              <TextInput
+                style={styles.noteInput}
+                value={note}
+                onChangeText={setNote}
+                placeholder="Transfer untuk apa?"
+                placeholderTextColor={Colors.textMuted}
+              />
+
+              {/* Continue Button */}
+              <Pressable
+                onPress={handleAmountContinue}
+                style={({ pressed }) => pressed && styles.btnPressed}
+                disabled={parseAmount(amount) <= 0}
+              >
+                <LinearGradient
+                  colors={
+                    parseAmount(amount) > 0
+                      ? [Colors.primary, Colors.primaryLight]
+                      : [Colors.border, Colors.border]
+                  }
+                  style={[
+                    styles.continueBtn,
+                    parseAmount(amount) <= 0 && styles.continueBtnDisabled,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.continueBtnText,
+                      parseAmount(amount) <= 0 &&
+                        styles.continueBtnTextDisabled,
+                    ]}
+                  >
+                    Lanjutkan
+                  </Text>
+                </LinearGradient>
+              </Pressable>
             </Animated.View>
           )}
 
@@ -940,23 +950,30 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     backgroundColor: Colors.card,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: Colors.textPrimary },
+  headerTitle: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
   amountHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -965,9 +982,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   backBtnLight: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1055,13 +1072,40 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   recipientName: { fontSize: 17, fontWeight: "600", color: Colors.textPrimary },
-  amountCard: {
+  recipientCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.card,
-    borderRadius: 24,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 18,
-    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  amountCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+    gap: 8,
+  },
+  amountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  currencyLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textMuted,
+  },
+  amountTextInput: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
   },
   amountInput: {
     flexDirection: "row",
@@ -1246,9 +1290,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     alignItems: "center",
-    marginTop: 8,
+  },
+  continueBtnDisabled: {
+    opacity: 0.5,
   },
   continueBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  continueBtnTextDisabled: {
+    color: "#fff",
+  },
   confirmCard: {
     backgroundColor: Colors.card,
     borderRadius: 24,

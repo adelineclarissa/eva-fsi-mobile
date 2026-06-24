@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { Account, Transaction, Beneficiary, UserProfile } from "../types";
-import { MOCK_TRANSACTIONS, MOCK_BENEFICIARIES } from "../constants/mockData";
+import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS, MOCK_BENEFICIARIES } from "../constants/mockData";
 import {
   fetchUserAccounts,
   fetchUserProfile,
@@ -95,6 +95,22 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         accounts,
         user,
         activeAccountId: accounts[0]?.id ?? null,
+        lastRefreshed: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.warn("Bank API failed, falling back to mock data:", error);
+      // Fall back to mock data when API is down
+      set({
+        accounts: MOCK_ACCOUNTS,
+        user: {
+          id: "USR001",
+          name: "Demo User",
+          email: "demo@example.com",
+          phone: "+62 812 3456 7890",
+          tier: "standard",
+          joinDate: new Date().toISOString(),
+        },
+        activeAccountId: MOCK_ACCOUNTS[0]?.id ?? null,
         lastRefreshed: new Date().toISOString(),
       });
     } finally {
