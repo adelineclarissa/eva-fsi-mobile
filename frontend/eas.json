@@ -1,0 +1,52 @@
+{
+  "cli": {
+    "version": ">= 3.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_FSI_API_URL": "https://api.epsindo.ai/fsi/api/v1/chat",
+        "EXPO_PUBLIC_FSI_API_KEY": "eps-v1-j8OlarSGqbbXSnJb5UDw",
+        "EXPO_PUBLIC_FSI_USER_ID": "USR001",
+        "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
+        "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
+        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_FSI_API_URL": "https://api.epsindo.ai/fsi/api/v1/chat",
+        "EXPO_PUBLIC_FSI_API_KEY": "eps-v1-j8OlarSGqbbXSnJb5UDw",
+        "EXPO_PUBLIC_FSI_USER_ID": "USR001",
+        "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
+        "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
+        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_FSI_API_URL": "https://api.epsindo.ai/fsi/api/v1/chat",
+        "EXPO_PUBLIC_FSI_API_KEY": "eps-v1-j8OlarSGqbbXSnJb5UDw",
+        "EXPO_PUBLIC_FSI_USER_ID": "USR001",
+        "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
+        "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
+        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

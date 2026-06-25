@@ -8,11 +8,6 @@
     "scheme": "eva-banking",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F2F5FA",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F2F5FA"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.eva.banking"
@@ -26,16 +21,16 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font",
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#F2F5FA"
-        }
-      ]
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cba8092b-6150-4135-b639-ee52d78e5148"
+      }
     }
   }
 }
