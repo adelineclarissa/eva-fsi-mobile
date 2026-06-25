@@ -16,8 +16,5 @@ COPY . .
 # Expose Expo dev server port
 EXPOSE 8081
 
-# Start Expo dev server
-# --clear-cache: ensure clean start
-# --port: Expo dev server port
-# -c: clear cache on start
-CMD ["npx", "expo", "start", "--clear-cache", "--port", "8081"]
+# Start Expo dev server with lan mode for local network access
+CMD ["npx", "expo", "start", "-c", "--port", "8081", "--lan"]

@@ -24,10 +24,6 @@
       },
       "package": "com.eva.banking"
     },
-    "web": {
-      "bundler": "metro",
-      "output": "static"
-    },
     "plugins": [
       "expo-router",
       "expo-font",
