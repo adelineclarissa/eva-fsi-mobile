@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -54,13 +55,66 @@ function extractTransferBeneficiaryName(
   );
 }
 
+function extractTransferAccountNumber(
+  actionPayload: LlmActionPayload | null,
+): string | null {
+  if (!actionPayload || actionPayload.action !== "transfer") return null;
+  const data = actionPayload.data;
+  return (
+    (data.accountNumber as string) ??
+    (data.account_number as string) ??
+    (data.recipientAccount as string) ??
+    (data.recipient_account as string) ??
+    (data.toAccount as string) ??
+    (data.to_account as string) ??
+    null
+  );
+}
+
+function extractTransferBankName(
+  actionPayload: LlmActionPayload | null,
+): string | null {
+  if (!actionPayload || actionPayload.action !== "transfer") return null;
+  const data = actionPayload.data;
+  return (
+    (data.bankName as string) ??
+    (data.bank_name as string) ??
+    (data.recipientBank as string) ??
+    (data.recipient_bank as string) ??
+    null
+  );
+}
+
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const suggestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const router = useRouter();
+
+  // Track keyboard show/hide
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Scroll to bottom after keyboard animation starts
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const {
     messages,
@@ -81,13 +135,17 @@ export default function ChatScreen() {
   const { beneficiaries, user } = useAccountStore();
 
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(
-        () => flatListRef.current?.scrollToEnd({ animated: true }),
-        100,
-      );
+    const scrollToBottom = () =>
+      flatListRef.current?.scrollToEnd({ animated: true });
+    requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
+  }, [messages.length, isLoading, suggestionsVisible, pendingSelection]);
+
+  // Dismiss keyboard when pending selection appears
+  useEffect(() => {
+    if (pendingSelection) {
+      Keyboard.dismiss();
     }
-  }, [messages.length]);
+  }, [pendingSelection]);
 
   // Show suggestions 3 seconds after an assistant reply, unless user replies first
   useEffect(() => {
@@ -157,27 +215,74 @@ export default function ChatScreen() {
         const beneficiaryName = extractTransferBeneficiaryName(
           result.actionPayload,
         );
+        const accountNumber = extractTransferAccountNumber(
+          result.actionPayload,
+        );
+        const bankName = extractTransferBankName(result.actionPayload);
 
         if (beneficiaryName) {
-          // Add a confirmation message for the transfer intent
+          // Search beneficiaries first
+          const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
+
+          if (matches.length > 0) {
+            // Found matches — show intent confirmation + selection UI
+            const amount = result.actionPayload?.data.amount;
+            const desc = result.actionPayload?.data.desc;
+            const intentText = amount
+              ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
+              : `Transfer ke ${beneficiaryName}`;
+            addMessage({
+              role: "assistant",
+              content: intentText,
+              toolsUsed: result.toolsUsed,
+            });
+
+            addBeneficiarySelectionMessage({
+              keyword: beneficiaryName,
+              matches,
+              amount: amount ? Number(amount) : undefined,
+              desc: desc ? String(desc) : undefined,
+            });
+          } else {
+            // No matches — call LLM again to ask user for account number
+            const amount = result.actionPayload?.data.amount;
+            const desc = result.actionPayload?.data.desc;
+            const amountStr = amount
+              ? ` sebesar Rp ${Number(amount).toLocaleString("id-ID")}`
+              : "";
+            const descStr = desc ? ` dengan catatan "${desc}"` : "";
+
+            const prompt = `User ingin melakukan transfer${amountStr} ke "${beneficiaryName}"${descStr}. Saya sudah mencari "${beneficiaryName}" di daftar penerima (beneficiary) user dan tidak ditemukan. Tolong beri tahu user bahwa "${beneficiaryName}" tidak ditemukan di daftar penerima, lalu minta user untuk memasukkan nomor rekening tujuan. Jangan asumsikan nomor rekening. Tunggu user memberikan nomor rekening sebelum melanjutkan.`;
+            const llmResult = await sendChatMessage(prompt, sessionId);
+            addMessage({
+              role: "assistant",
+              content: llmResult.reply,
+              toolsUsed: llmResult.toolsUsed,
+            });
+          }
+        } else if (accountNumber && beneficiaryName) {
+          // Transfer with account number (not in beneficiary list) — navigate directly
           const amount = result.actionPayload?.data.amount;
           const desc = result.actionPayload?.data.desc;
           const intentText = amount
-            ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
-            : `Transfer ke ${beneficiaryName}`;
+            ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName} (${accountNumber})${desc ? ` (${desc})` : ""}`
+            : `Transfer ke ${beneficiaryName} (${accountNumber})`;
           addMessage({
             role: "assistant",
             content: intentText,
             toolsUsed: result.toolsUsed,
           });
 
-          // Search beneficiaries and show selection UI
-          const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
-          addBeneficiarySelectionMessage({
-            keyword: beneficiaryName,
-            matches,
-            amount: amount ? Number(amount) : undefined,
-            desc: desc ? String(desc) : undefined,
+          // Navigate to transfer with new account params
+          router.push({
+            pathname: "/transfer",
+            params: {
+              newAccountName: beneficiaryName,
+              newAccountNumber: accountNumber,
+              newBankName: bankName ?? "",
+              amount: amount ? String(amount) : "",
+              desc: desc ? String(desc) : "",
+            },
           });
         } else {
           // No transfer intent — just add the normal reply
@@ -436,7 +541,10 @@ export default function ChatScreen() {
   }, [suggestionsVisible, messages.length, isLoading, handleCapabilityTap]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView
+      style={styles.safe}
+      edges={["top", "bottom", "left", "right"]}
+    >
       {/* Header */}
       <Animated.View entering={FadeInDown.springify()} style={styles.header}>
         <View style={styles.headerLeft}>
@@ -464,22 +572,32 @@ export default function ChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        {/* Messages */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
-          ListFooterComponent={renderFooter}
-          contentContainerStyle={styles.messageList}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }
-        />
+        {/* Messages - takes remaining space */}
+        <View style={{ flex: 1 }}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            ListHeaderComponent={renderHeader}
+            ListFooterComponent={renderFooter}
+            contentContainerStyle={[
+              styles.messageList,
+              {
+                paddingBottom:
+                  Platform.OS === "android" ? keyboardHeight + 16 : 16,
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            onContentSizeChange={() =>
+              flatListRef.current?.scrollToEnd({ animated: true })
+            }
+          />
+        </View>
 
-        {/* Input area */}
+        {/* Input area - stays fixed at bottom */}
         <Animated.View
           entering={SlideInUp.springify()}
           style={styles.inputContainer}
@@ -544,9 +662,6 @@ export default function ChatScreen() {
               </Pressable>
             </View>
           )}
-          <Text style={styles.disclaimer}>
-            Powered by Epsindo.ai · Responses may be inaccurate
-          </Text>
         </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -583,7 +698,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700",
     color: Colors.textPrimary,
   },
@@ -615,7 +730,7 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingTop: 8,
-    paddingBottom: 8,
+    flexGrow: 1,
   },
   welcomeContainer: {
     alignItems: "center",
@@ -725,11 +840,11 @@ const styles = StyleSheet.create({
   inputContainer: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 22 : 40,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: Platform.OS === "ios" ? 14 : 24,
     backgroundColor: Colors.background,
-    gap: 8,
+    gap: 4,
   },
   cancelBtn: {
     borderRadius: 16,
@@ -753,14 +868,14 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
+    alignItems: "center",
+    gap: 6,
     backgroundColor: Colors.card,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   inputAction: {
     width: 38,
@@ -777,23 +892,23 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 15,
     maxHeight: 100,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingHorizontal: 2,
   },
   sendBtn: {
-    borderRadius: 14,
+    borderRadius: 999,
     overflow: "hidden",
   },
   sendBtnPressed: {
     opacity: 0.8,
   },
   sendGradient: {
-    width: 38,
-    height: 38,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
+    borderRadius: 999,
   },
   disclaimer: {
     fontSize: 10,
