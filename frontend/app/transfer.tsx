@@ -154,6 +154,18 @@ export default function TransferScreen() {
     typeof searchParams.amount === "string" ? searchParams.amount : undefined;
   const paramDesc =
     typeof searchParams.desc === "string" ? searchParams.desc : undefined;
+  const newAccountName =
+    typeof searchParams.newAccountName === "string"
+      ? searchParams.newAccountName
+      : undefined;
+  const newAccountNumber =
+    typeof searchParams.newAccountNumber === "string"
+      ? searchParams.newAccountNumber
+      : undefined;
+  const newBankName =
+    typeof searchParams.newBankName === "string"
+      ? searchParams.newBankName
+      : undefined;
 
   // Pre-fill from chat navigation params, but only when those params actually change.
   useEffect(() => {
@@ -165,6 +177,30 @@ export default function TransferScreen() {
     setSelected((current) => (current?.id === ben.id ? current : ben));
     setStep((current) => (current === "select" ? "amount" : current));
   }, [beneficiaryId, beneficiaries]);
+
+  // Pre-fill from new account params (not in beneficiary list)
+  useEffect(() => {
+    if (!newAccountName || !newAccountNumber) return;
+
+    const initials = newAccountName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+    const newBen: Beneficiary = {
+      id: `new_${newAccountNumber}`,
+      name: newAccountName,
+      accountNumber: newAccountNumber,
+      bankName: newBankName,
+      initials,
+      color: Colors.accentPurple,
+    };
+
+    setSelected(newBen);
+    setStep("amount");
+  }, [newAccountName, newAccountNumber, newBankName]);
 
   useEffect(() => {
     if (!paramAmount) return;
