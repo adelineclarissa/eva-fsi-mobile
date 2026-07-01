@@ -4,10 +4,6 @@ import Animated, { FadeInUp, Layout } from "react-native-reanimated";
 import { Colors } from "../../constants/colors";
 
 const QUICK_ACTIONS = [
-  {
-    label: "Apa itu deposito mudharabah?",
-    prompt: "Apa itu deposito mudharabah?",
-  },
   { label: "Berapa kurs USD hari ini?", prompt: "Berapa kurs USD hari ini?" },
   {
     label: "Cek saldo rekening saya",
