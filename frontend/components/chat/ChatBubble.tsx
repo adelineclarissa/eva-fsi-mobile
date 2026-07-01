@@ -130,8 +130,10 @@ export default function ChatBubble({
           <Text style={styles.userText} selectable>
             {message.content}
           </Text>
+          <Text style={styles.userTimestamp}>
+            {formatTime(message.timestamp)}
+          </Text>
         </LinearGradient>
-        <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
       </Animated.View>
     );
   }
@@ -172,6 +174,9 @@ export default function ChatBubble({
         {/* Message bubble */}
         <View style={styles.assistantBubble}>
           <Markdown style={markdownStyles}>{message.content}</Markdown>
+          <Text style={styles.assistantTimestamp}>
+            {formatTime(message.timestamp)}
+          </Text>
         </View>
 
         {/* Beneficiary selector — hidden after selection */}
@@ -184,8 +189,6 @@ export default function ChatBubble({
             selectedId={selectedBeneficiaryId}
           />
         )}
-
-        <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
       </View>
     </Animated.View>
   );
@@ -194,8 +197,8 @@ export default function ChatBubble({
 const styles = StyleSheet.create({
   userContainer: {
     alignItems: "flex-end",
-    marginVertical: 6,
-    paddingHorizontal: 16,
+    marginVertical: 2,
+    paddingHorizontal: 12,
   },
   userName: {
     fontSize: 11,
@@ -206,14 +209,21 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     maxWidth: "78%",
-    borderRadius: 20,
+    borderRadius: 13,
     borderBottomRightRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: "center",
     shadowColor: Colors.accentPurple,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
+  },
+  userTimestamp: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.65)",
+    textAlign: "right",
+    marginTop: 2,
   },
   userText: {
     color: "#fff",
@@ -223,34 +233,34 @@ const styles = StyleSheet.create({
   assistantContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginVertical: 6,
-    paddingHorizontal: 16,
-    gap: 10,
+    marginVertical: 2,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   avatarWrapper: {
-    marginTop: 4,
+    marginTop: 0,
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "800",
   },
   assistantContent: {
     flex: 1,
-    gap: 6,
+    gap: 2,
   },
   assistantName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: Colors.textMuted,
-    marginBottom: 4,
+    marginBottom: 0,
     marginLeft: 4,
   },
   toolBadges: {
@@ -274,12 +284,19 @@ const styles = StyleSheet.create({
   },
   assistantBubble: {
     backgroundColor: Colors.card,
-    borderRadius: 20,
+    borderRadius: 13,
     borderTopLeftRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  assistantTimestamp: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    textAlign: "right",
+    marginTop: 2,
   },
   timestamp: {
     fontSize: 10,
