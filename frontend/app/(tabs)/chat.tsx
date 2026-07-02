@@ -541,10 +541,7 @@ export default function ChatScreen() {
   }, [suggestionsVisible, messages.length, isLoading, handleCapabilityTap]);
 
   return (
-    <SafeAreaView
-      style={styles.safe}
-      edges={["top", "bottom", "left", "right"]}
-    >
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* Header */}
       <Animated.View entering={FadeInDown.springify()} style={styles.header}>
         <View style={styles.headerLeft}>
