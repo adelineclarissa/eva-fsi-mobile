@@ -1,325 +1,154 @@
 # EVA Banking App
 
-A sleek, premium AI-powered mobile banking app built with React Native (Expo) and a Node.js backend featuring a fully functional AI assistant powered by Claude.
+A mobile banking app with a built-in AI assistant (EVA), built with React Native and Expo. The UI is in Bahasa Indonesia.
+
+The app has no backend of its own. It talks directly to two hosted services:
+
+- **FSI API** — the AI chat assistant
+- **Bank API** — the customer's profile and accounts
 
 ---
 
 ## Features
 
-### Core Banking
+- **Beranda (Home)** — balance card, account switcher, quick actions, beneficiary shortcuts, currency rates
+- **Aktivitas (Activity)** — accounts and transaction history
+- **Asisten AI (AI Assistant)** — chat with EVA to check balances, ask about exchange rates, and start transfers
+- **Profil (Profile)** — user info and settings
+- **QRIS scanner** — the center tab button opens the camera to scan QRIS codes, or shows your own QRIS to receive payments
+- **Transfer flow** — pick a beneficiary, enter an amount, confirm, then save or share the receipt
 
-- **Dashboard** — Balance overview, quick actions, beneficiary shortcuts, live currency rates
-- **AI Assistant (EVA)** — Conversational banking with real tool calling via Claude
-- **Transfer Flow** — 3-step transfer with beneficiary selection and confirmation
-- **Account Cards** — Visual account overview with full transaction history
-- **Profile** — Security score, settings, member info
+### How a transfer from chat works
 
-### AI Chatbot Capabilities
-
-| Feature            | Description              | Example Prompt             |
-| ------------------ | ------------------------ | -------------------------- |
-| **Balance Check**  | Query checking & savings | "What's my balance?"       |
-| **Fund Transfer**  | Execute real transfers   | "Send $200 to John"        |
-| **Exchange Rates** | Live currency conversion | "Convert 500 SGD to USD"   |
-| **RAG / PDF Q&A**  | Upload & query documents | "Summarize this policy"    |
-| **Transactions**   | View history             | "Show recent transactions" |
-| **Beneficiaries**  | List saved contacts      | "Who can I send money to?" |
-
-### Design
-
-- Dark mode by default
-- Premium glassmorphism cards
-- Smooth Reanimated animations
-- Linear gradient accents
-- Haptic feedback throughout
-- Streaming AI responses
-- Skeleton loading & pull-to-refresh
+1. The user asks EVA to send money (for example, "Transfer 100 ribu ke Budi").
+2. The FSI API replies with a JSON action payload: `{ "action": "transfer", "data": { ... } }`.
+3. The app finds matching beneficiaries and asks the user to pick one.
+4. The app opens the transfer screen with the details filled in.
+5. When the transfer completes or is cancelled, the app reports the result back to EVA, which confirms it in the chat.
 
 ---
 
 ## Tech Stack
 
-| Layer      | Technology                           |
-| ---------- | ------------------------------------ |
-| Frontend   | React Native (Expo SDK 52)           |
-| Navigation | Expo Router (file-based)             |
-| State      | Zustand                              |
-| Animations | React Native Reanimated 3            |
-| Styling    | NativeWind v4 (Tailwind)             |
-| Gestures   | React Native Gesture Handler         |
-| Backend    | Node.js + Express                    |
-| AI         | Anthropic Claude (claude-sonnet-4-6) |
-| RAG        | TF-IDF in-memory (swap for Pinecone) |
-| PDF        | pdf-parse                            |
+| Layer      | Technology                          |
+| ---------- | ----------------------------------- |
+| Framework  | React Native 0.81 + Expo SDK 54     |
+| Navigation | Expo Router 6 (file-based)          |
+| State      | Zustand                             |
+| Styling    | NativeWind 4 (Tailwind)             |
+| Animations | React Native Reanimated 4           |
+| Camera     | expo-camera (QRIS scanning)         |
+| Builds     | EAS Build                           |
 
 ---
 
 ## Project Structure
 
 ```
-BankingApp/
-├── frontend/
-│   ├── app/
-│   │   ├── _layout.tsx          # Root layout
-│   │   ├── transfer.tsx         # Transfer modal screen
-│   │   └── (tabs)/
-│   │       ├── _layout.tsx      # Tab bar
-│   │       ├── index.tsx        # Home Dashboard
-│   │       ├── chat.tsx         # AI Assistant
-│   │       ├── cards.tsx        # Accounts & Transactions
-│   │       └── profile.tsx      # User Profile
-│   ├── components/
-│   │   ├── ui/                  # BalanceCard, QuickActions, etc.
-│   │   ├── chat/                # ChatBubble, TypingIndicator, etc.
-│   │   └── common/              # GlassCard
-│   ├── store/
-│   │   ├── accountStore.ts      # Account & transaction state
-│   │   └── chatStore.ts         # Chat session state
-│   ├── services/
-│   │   └── apiService.ts        # Backend API calls
-│   ├── constants/
-│   │   ├── colors.ts            # Design tokens
-│   │   └── mockData.ts          # Initial data
-│   ├── types/index.ts
-│   └── utils/formatters.ts
-│
-└── backend/
-    └── src/
-        ├── server.ts            # Express entry point
-        ├── routes/
-        │   ├── chat.ts          # POST /chat, /chat/stream
-        │   ├── balance.ts       # GET /balance
-        │   ├── transfer.ts      # POST /transfer
-        │   ├── exchange.ts      # GET /exchange-rates
-        │   └── upload.ts        # POST /upload
-        ├── services/
-        │   ├── llm.ts           # Claude + tool calling
-        │   ├── tools.ts         # Tool implementations
-        │   └── rag.ts           # Vector search (TF-IDF)
-        └── data/mockData.ts     # Mock accounts & transactions
+.
+├── app/                     # Screens (Expo Router)
+│   ├── _layout.tsx          # Root layout
+│   ├── transfer.tsx         # Transfer flow + receipt
+│   ├── scan-qris.tsx        # QRIS scanner / receive
+│   └── (tabs)/
+│       ├── _layout.tsx      # Custom tab bar with center QRIS button
+│       ├── index.tsx        # Beranda (Home)
+│       ├── cards.tsx        # Aktivitas (Activity)
+│       ├── chat.tsx         # Asisten AI (AI Assistant)
+│       └── profile.tsx      # Profil (Profile)
+├── components/
+│   ├── ui/                  # BalanceCard, QuickActions, AccountSwitcher, ...
+│   ├── chat/                # ChatBubble, BeneficiarySelector, SuggestedPrompts, ...
+│   └── common/              # GlassCard
+├── services/
+│   ├── fsiApi.ts            # AI chat client (FSI API)
+│   └── bankApi.ts           # Profile & accounts client (Bank API)
+├── store/
+│   ├── accountStore.ts      # Accounts, transactions, beneficiaries
+│   └── chatStore.ts         # Chat session state
+├── constants/               # Colors and mock data
+├── types/                   # Shared TypeScript types
+├── utils/                   # Formatters
+├── assets/                  # App icon, splash
+├── app.json                 # Expo config
+├── eas.json                 # EAS build profiles
+└── Dockerfile, docker-compose.yml   # Optional: run the Expo dev server in Docker
 ```
 
 ---
 
-## Setup
+## Data Sources
+
+| Data                     | Source                                |
+| ------------------------ | ------------------------------------- |
+| User profile             | Bank API (`/api/customer/user/:id`)   |
+| Accounts & balances      | Bank API (`/api/customer/user/:id/accounts`) |
+| AI chat replies          | FSI API (`POST /fsi/api/v1/chat`)     |
+| Transactions             | Mock data (`constants/mockData.ts`)   |
+| Beneficiaries            | Mock data (`constants/mockData.ts`)   |
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
-- Expo CLI: `npm install -g expo-cli`
-- iOS Simulator (Mac) or Android Emulator or Expo Go app
+- Node.js 20+
+- An Android emulator, iOS Simulator (macOS), or a phone with a development build installed
 
----
-
-### 1. Backend Setup
+### Install and run
 
 ```bash
-cd BankingApp/backend
 npm install
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-PORT=3001
-ANTHROPIC_API_KEY=sk-ant-...     # Required — get from console.anthropic.com
-EXCHANGE_RATE_API_KEY=...         # Optional — free at exchangerate-api.com
-```
-
-Start the backend:
-
-```bash
-npm run dev
-```
-
-Verify: `curl http://localhost:3001/health`
-
----
-
-### 2. Frontend Setup
-
-```bash
-cd BankingApp/frontend
-npm install
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-# For iOS Simulator / web:
-EXPO_PUBLIC_API_URL=http://localhost:3001
-
-# For physical device (replace with your machine's IP):
-EXPO_PUBLIC_API_URL=http://192.168.x.x:3001
-```
-
-Find your IP: `ifconfig | grep "inet " | grep -v 127.0.0.1`
-
-Start the app:
-
-```bash
 npx expo start
 ```
 
-Press:
+Then press `a` for Android or `i` for iOS, or scan the QR code with your phone.
 
-- `i` — iOS Simulator
-- `a` — Android Emulator
-- Scan QR with Expo Go app for physical device
+### Environment variables
 
----
+Create a `.env` file in the repo root (it is git-ignored):
 
-## API Reference
-
-### POST `/chat`
-
-```json
-{
-  "message": "What's my balance?",
-  "sessionId": "session_abc123"
-}
+```env
+EXPO_PUBLIC_FSI_API_URL=https://api.epsindo.ai/fsi/api/v1/chat
+EXPO_PUBLIC_FSI_API_KEY=your-fsi-api-key
+EXPO_PUBLIC_FSI_USER_ID=USR001
+EXPO_PUBLIC_BANK_API_URL=https://api.epsindo.ai/bank-api
+EXPO_PUBLIC_BANK_API_TOKEN=your-bank-api-token
 ```
 
-Response:
+| Variable                     | Description                                   |
+| ---------------------------- | --------------------------------------------- |
+| `EXPO_PUBLIC_FSI_API_URL`    | AI chat endpoint                              |
+| `EXPO_PUBLIC_FSI_API_KEY`    | Sent as the `X-API-Key` header to the FSI API |
+| `EXPO_PUBLIC_FSI_USER_ID`    | Customer ID used by both APIs                 |
+| `EXPO_PUBLIC_BANK_API_URL`   | Bank API base URL                             |
+| `EXPO_PUBLIC_BANK_API_TOKEN` | Sent as a Bearer token to the Bank API        |
 
-```json
-{
-  "reply": "Your checking account has $12,580.50...",
-  "toolsUsed": ["check_balance"],
-  "sessionId": "session_abc123"
-}
+`eas.json` also defines `EXPO_PUBLIC_STT_WS_URL` and `EXPO_PUBLIC_TTS_WS_URL` (speech-to-text / text-to-speech), but the app doesn't use them yet.
+
+> **Note:** `EXPO_PUBLIC_*` variables are bundled into the app, so anyone with the APK can read them. Don't put secrets here that shouldn't be public.
+
+### Run in Docker (optional)
+
+```bash
+docker compose up
 ```
 
-### POST `/chat/stream`
+This starts the Expo dev server on port 8081 using the host network, so the QR code shows your machine's local IP.
 
-Server-Sent Events streaming. Same body as `/chat`.
+---
 
-Events: `token`, `tool`, `complete`, `error`
+## Building
 
-### GET `/balance`
+Builds use [EAS Build](https://docs.expo.dev/build/introduction/). Profiles are defined in `eas.json`:
 
-Returns user profile, all accounts, and total balance.
+| Profile       | Output         | Use for                     |
+| ------------- | -------------- | --------------------------- |
+| `development` | APK (dev client) | Local development         |
+| `preview`     | APK            | Internal testing            |
+| `production`  | AAB            | Google Play release         |
 
-### POST `/transfer`
-
-```json
-{
-  "toBeneficiaryName": "John Smith",
-  "amount": 100,
-  "currency": "USD",
-  "fromAccount": "checking"
-}
+```bash
+eas build --platform android --profile preview
 ```
-
-### GET `/exchange-rates?from=USD&to=EUR&amount=100`
-
-Returns live exchange rate and optional conversion.
-
-### POST `/upload`
-
-Multipart form with `file` (PDF). Returns document ID and chunk count.
-
----
-
-## AI Tool Calling
-
-The AI uses Claude's native tool calling to execute banking operations:
-
-```
-User: "Transfer $500 to Sarah"
-  ↓
-Claude detects intent → calls transfer_funds tool
-  ↓
-Tool executes → updates balance in memory
-  ↓
-Claude responds with confirmation
-  ↓
-Frontend refreshes account state
-```
-
-Available tools:
-
-- `check_balance(account_type)`
-- `transfer_funds(to, amount, currency, from)`
-- `get_exchange_rate(from, to, amount?)`
-- `search_documents(query)` — RAG
-- `get_transaction_history(limit?)`
-- `get_beneficiaries()`
-
----
-
-## RAG Pipeline
-
-Upload a PDF → backend parses text → chunks into ~500-word segments → stored in memory.
-
-During chat, when the AI calls `search_documents`:
-
-1. Query is compared to all chunks via TF-IDF scoring
-2. Top 3 relevant chunks are retrieved
-3. Context is injected into the prompt
-4. Claude answers based on the document
-
-**To use a real vector DB** (Pinecone, Chroma, Weaviate):
-Replace `src/services/rag.ts` with your embedding + vector DB calls.
-
----
-
-## Mock Data
-
-The app ships with realistic mock data:
-
-- **Accounts**: Checking ($12,580.50), Savings ($45,230.00)
-- **Transactions**: 10 sample transactions across categories
-- **Beneficiaries**: John Smith, Sarah Johnson, Mike Chen, Emma Wilson, David Lee
-
-Data persists in-memory for the backend session.
-
----
-
-## Environment Variables
-
-### Backend (`backend/.env`)
-
-| Variable                | Required | Description                       |
-| ----------------------- | -------- | --------------------------------- |
-| `ANTHROPIC_API_KEY`     | ✅       | Claude API key                    |
-| `PORT`                  | ❌       | Server port (default: 3001)       |
-| `EXCHANGE_RATE_API_KEY` | ❌       | Live rates (falls back to cached) |
-| `CORS_ORIGIN`           | ❌       | Allowed origin                    |
-
-### Frontend (`frontend/.env`)
-
-| Variable              | Required | Description |
-| --------------------- | -------- | ----------- |
-| `EXPO_PUBLIC_API_URL` | ✅       | Backend URL |
-
----
-
-## Upgrading RAG to Production
-
-Replace the in-memory TF-IDF with real embeddings:
-
-```typescript
-// In services/rag.ts — replace computeTFIDF with:
-import { OpenAI } from "openai";
-// or use @anthropic-ai/sdk for embeddings via Voyage AI
-
-async function embed(text: string): Promise<number[]> {
-  const res = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return res.data[0].embedding;
-}
-```
-
-Then replace the similarity function with cosine similarity on vectors and store in Pinecone.
-
----
-
-## Credits
-
-Built with Claude claude-sonnet-4-6 · Expo · React Native · NativeWind

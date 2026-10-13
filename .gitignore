@@ -32,8 +32,8 @@ Thumbs.db
 .idea/
 
 # Native build artifacts
-frontend/ios/
-frontend/android/
+/ios/
+/android/
 
 # Package manager locks (keep one — remove the one you don't use)
 # package-lock.json
