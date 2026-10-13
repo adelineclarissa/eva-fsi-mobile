@@ -292,7 +292,8 @@ export default function ChatScreen() {
             toolsUsed: result.toolsUsed,
           });
         }
-      } catch {
+      } catch (error) {
+        console.warn("[FSI] sendChat failed:", error);
         addMessage({
           role: "assistant",
           content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",
@@ -339,7 +340,8 @@ export default function ChatScreen() {
           toolsUsed: result.toolsUsed,
         });
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn("[FSI] cancel prompt failed:", error);
         addMessage({
           role: "assistant",
           content: "Gagal terhubung ke server. Periksa koneksi dan coba lagi.",

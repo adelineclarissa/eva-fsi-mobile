@@ -4,6 +4,18 @@ const FSI_API_URL =
 const FSI_API_KEY = process.env.EXPO_PUBLIC_FSI_API_KEY || "";
 const FSI_USER_ID = process.env.EXPO_PUBLIC_FSI_USER_ID || "";
 
+function maskKey(key: string): string {
+  if (!key) return "(empty)";
+  return `${key.slice(0, 6)}…${key.slice(-4)} (len ${key.length})`;
+}
+
+console.log("[FSI] config:", {
+  url: FSI_API_URL,
+  urlFromEnv: !!process.env.EXPO_PUBLIC_FSI_API_URL,
+  apiKey: maskKey(FSI_API_KEY),
+  userId: FSI_USER_ID || "(empty)",
+});
+
 export interface ToolCallInfo {
   tool_name: string;
   arguments: Record<string, unknown>;
@@ -39,6 +51,98 @@ function tryParseActionPayload(text: string): LlmActionPayload | null {
   return null;
 }
 
+async function postChat(
+  label: string,
+  payload: Record<string, unknown>,
+): Promise<ChatApiResponse> {
+  const startedAt = Date.now();
+  console.log(`[FSI] ${label} → POST ${FSI_API_URL}`, {
+    apiKey: maskKey(FSI_API_KEY),
+    payload,
+  });
+
+  let response: Response;
+  try {
+    response = await fetch(FSI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(FSI_API_KEY ? { "X-API-Key": FSI_API_KEY } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    // fetch only rejects on network-level failures (DNS, TLS, offline, CORS)
+    console.error(
+      `[FSI] ${label} ✗ network error after ${Date.now() - startedAt}ms:`,
+      err instanceof Error ? `${err.name}: ${err.message}` : err,
+    );
+    throw err;
+  }
+
+  const elapsed = Date.now() - startedAt;
+  const rawBody = await response.text();
+  console.log(`[FSI] ${label} ← HTTP ${response.status} in ${elapsed}ms`, {
+    contentType: response.headers.get("content-type"),
+  });
+
+  if (!response.ok) {
+    console.error(`[FSI] ${label} ✗ HTTP ${response.status} in ${elapsed}ms`, {
+      errorBody: rawBody.slice(0, 1000),
+      request: payload,
+      retryWithCurl: `curl -X POST '${FSI_API_URL}' -H 'Content-Type: application/json' -H 'X-API-Key: <key>' -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}'`,
+    });
+    let message = `FSI request failed: ${response.status}`;
+    try {
+      const error = JSON.parse(rawBody);
+      message = error.error || error.detail || message;
+    } catch {
+      // Non-JSON error body — keep status message
+    }
+    throw new Error(message);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch (err) {
+    console.error(
+      `[FSI] ${label} ✗ invalid JSON response:`,
+      rawBody.slice(0, 1000),
+    );
+    throw err;
+  }
+
+  console.log(`[FSI] ${label} response:`, {
+    conversation_id: data.conversation_id,
+    tool_calls: (data.tool_calls ?? []).map((tc: ToolCallInfo) => tc.tool_name),
+    guardrail_blocked: data.guardrail_blocked,
+    pii_blocked: data.pii_blocked,
+    message: String(data.message ?? "").slice(0, 300),
+  });
+
+  const rawToolCalls = (data.tool_calls ?? []) as ToolCallInfo[];
+  const rawMessage = data.message || "";
+
+  // Try parsing the message as a structured action payload
+  const actionPayload = tryParseActionPayload(rawMessage);
+  if (actionPayload) {
+    console.log(`[FSI] ${label} action payload:`, actionPayload);
+  }
+
+  // If the message is a pure JSON action payload, use a fallback reply
+  const reply = actionPayload ? "" : rawMessage;
+
+  return {
+    reply,
+    toolsUsed: rawToolCalls.map((tc: ToolCallInfo) => tc.tool_name),
+    toolCalls: rawToolCalls,
+    actionPayload,
+    conversationId: data.conversation_id || (payload.conversation_id as string),
+    timestamp: new Date().toISOString(),
+  };
+}
+
 export async function sendChatMessage(
   message: string,
   conversationId: string,
@@ -49,45 +153,7 @@ export async function sendChatMessage(
     user_id: FSI_USER_ID,
   };
 
-  console.log(
-    "[FSI] sendChatMessage payload:",
-    JSON.stringify(payload, null, 2),
-  );
-
-  const response = await fetch(FSI_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(FSI_API_KEY ? { "X-API-Key": FSI_API_KEY } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ error: "Network error" }));
-    throw new Error(error.error || `FSI request failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const rawToolCalls = (data.tool_calls ?? []) as ToolCallInfo[];
-  const rawMessage = data.message || "";
-
-  // Try parsing the message as a structured action payload
-  const actionPayload = tryParseActionPayload(rawMessage);
-
-  // If the message is a pure JSON action payload, use a fallback reply
-  const reply = actionPayload ? "" : rawMessage;
-
-  return {
-    reply,
-    toolsUsed: rawToolCalls.map((tc: ToolCallInfo) => tc.tool_name),
-    toolCalls: rawToolCalls,
-    actionPayload,
-    conversationId: data.conversation_id || conversationId,
-    timestamp: new Date().toISOString(),
-  };
+  return postChat("sendChatMessage", payload);
 }
 
 export interface TransactionReportPayload {
@@ -120,40 +186,5 @@ export async function reportTransaction(
     user_id: FSI_USER_ID,
   };
 
-  console.log(
-    "[FSI] reportTransaction payload:",
-    JSON.stringify(payload, null, 2),
-  );
-
-  const response = await fetch(FSI_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(FSI_API_KEY ? { "X-API-Key": FSI_API_KEY } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ error: "Network error" }));
-    throw new Error(error.error || `FSI request failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const rawToolCalls = (data.tool_calls ?? []) as ToolCallInfo[];
-  const rawMessage = data.message || "";
-
-  const actionPayload = tryParseActionPayload(rawMessage);
-  const reply = actionPayload ? "" : rawMessage;
-
-  return {
-    reply,
-    toolsUsed: rawToolCalls.map((tc: ToolCallInfo) => tc.tool_name),
-    toolCalls: rawToolCalls,
-    actionPayload,
-    conversationId: data.conversation_id || conversationId,
-    timestamp: new Date().toISOString(),
-  };
+  return postChat("reportTransaction", payload);
 }
