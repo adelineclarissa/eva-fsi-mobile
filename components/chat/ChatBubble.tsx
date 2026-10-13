@@ -12,6 +12,7 @@ import { Colors, DEV_MODE } from "../../constants/colors";
 import { ChatMessage, Beneficiary } from "../../types";
 import { formatTime } from "../../utils/formatters";
 import BeneficiarySelector from "./BeneficiarySelector";
+import VoiceNotePlayer from "./VoiceNotePlayer";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -127,9 +128,30 @@ export default function ChatBubble({
           end={{ x: 1, y: 1 }}
           style={styles.userBubble}
         >
-          <Text style={styles.userText} selectable>
-            {message.content}
-          </Text>
+          {message.audio ? (
+            <View style={styles.voiceNote}>
+              <VoiceNotePlayer
+                uri={message.audio.uri}
+                durationMs={message.audio.durationMs}
+                variant="dark"
+              />
+              {message.audio.transcription === "pending" ? (
+                <Text style={styles.transcript}>Mengenali suara...</Text>
+              ) : message.audio.transcription === "failed" ? (
+                <Text style={styles.transcript}>
+                  Gagal mengenali suara. Coba rekam ulang.
+                </Text>
+              ) : (
+                <Text style={styles.transcript} selectable>
+                  “{message.content}”
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.userText} selectable>
+              {message.content}
+            </Text>
+          )}
           <Text style={styles.userTimestamp}>
             {formatTime(message.timestamp)}
           </Text>
@@ -224,6 +246,16 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.65)",
     textAlign: "right",
     marginTop: 2,
+  },
+  voiceNote: {
+    gap: 6,
+    paddingTop: 2,
+  },
+  transcript: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    fontStyle: "italic",
+    lineHeight: 18,
   },
   userText: {
     color: "#fff",

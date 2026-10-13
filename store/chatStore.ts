@@ -21,7 +21,12 @@ interface ChatStore {
   selectedBeneficiary: Beneficiary | null;
   completedBenefCardIds: string[]; // message IDs of benef cards already selected
 
-  addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
+  /** Adds a message and returns its id */
+  addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => string;
+  updateMessage: (
+    id: string,
+    patch: Partial<Omit<ChatMessage, "id" | "timestamp">>,
+  ) => void;
   appendToLastMessage: (content: string) => void;
   setLoading: (loading: boolean) => void;
   setStreaming: (streaming: boolean) => void;
@@ -55,16 +60,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   selectedBeneficiary: null,
   completedBenefCardIds: [],
 
-  addMessage: (message) =>
+  addMessage: (message) => {
+    const id = generateId();
     set((state) => ({
       messages: [
         ...state.messages,
         {
           ...message,
-          id: generateId(),
+          id,
           timestamp: new Date().toISOString(),
         },
       ],
+    }));
+    return id;
+  },
+
+  updateMessage: (id, patch) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, ...patch } : m,
+      ),
     })),
 
   appendToLastMessage: (content) =>

@@ -125,7 +125,7 @@ EXPO_PUBLIC_BANK_API_TOKEN=your-bank-api-token
 | `EXPO_PUBLIC_BANK_API_URL`   | Bank API base URL                             |
 | `EXPO_PUBLIC_BANK_API_TOKEN` | Sent as a Bearer token to the Bank API        |
 
-`eas.json` also defines `EXPO_PUBLIC_STT_WS_URL` and `EXPO_PUBLIC_TTS_WS_URL` (speech-to-text / text-to-speech), but the app doesn't use them yet.
+Voice typing in the chat uses `EXPO_PUBLIC_STT_API_URL`, `EXPO_PUBLIC_STT_API_KEY` and `EXPO_PUBLIC_STT_MODEL` (OpenAI-compatible `/v1/audio/transcriptions`). `EXPO_PUBLIC_TTS_WS_URL` (text-to-speech) is defined but not used yet.
 
 > **Note:** `EXPO_PUBLIC_*` variables are bundled into the app, so anyone with the APK can read them. Don't put secrets here that shouldn't be public.
 

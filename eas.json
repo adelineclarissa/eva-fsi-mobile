@@ -12,7 +12,9 @@
         "EXPO_PUBLIC_FSI_USER_ID": "USR001",
         "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
         "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
-        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_STT_API_URL": "https://stt.epsindo.ai/v1/audio/transcriptions",
+        "EXPO_PUBLIC_STT_API_KEY": "eps-stt-12alamak99",
+        "EXPO_PUBLIC_STT_MODEL": "epsindo.ai/Qwen3-ASR-1.7B",
         "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
       },
       "android": {
@@ -27,7 +29,9 @@
         "EXPO_PUBLIC_FSI_USER_ID": "USR001",
         "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
         "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
-        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_STT_API_URL": "https://stt.epsindo.ai/v1/audio/transcriptions",
+        "EXPO_PUBLIC_STT_API_KEY": "eps-stt-12alamak99",
+        "EXPO_PUBLIC_STT_MODEL": "epsindo.ai/Qwen3-ASR-1.7B",
         "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
       },
       "android": {
@@ -41,7 +45,9 @@
         "EXPO_PUBLIC_FSI_USER_ID": "USR001",
         "EXPO_PUBLIC_BANK_API_URL": "https://api.epsindo.ai/bank-api",
         "EXPO_PUBLIC_BANK_API_TOKEN": "mytoken",
-        "EXPO_PUBLIC_STT_WS_URL": "wss://api.epsindo.ai/stt/stream",
+        "EXPO_PUBLIC_STT_API_URL": "https://stt.epsindo.ai/v1/audio/transcriptions",
+        "EXPO_PUBLIC_STT_API_KEY": "eps-stt-12alamak99",
+        "EXPO_PUBLIC_STT_MODEL": "epsindo.ai/Qwen3-ASR-1.7B",
         "EXPO_PUBLIC_TTS_WS_URL": "wss://api.epsindo.ai/tts/stream"
       },
       "android": {

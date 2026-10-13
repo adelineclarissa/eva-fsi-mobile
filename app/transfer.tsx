@@ -19,7 +19,6 @@ import {
   Keyboard,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -349,6 +348,8 @@ export default function TransferScreen() {
 
   const handleDownload = useCallback(async () => {
     try {
+      // Loaded lazily: expo-media-library throws on import under web
+      const MediaLibrary: typeof import("expo-media-library") = require("expo-media-library");
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(

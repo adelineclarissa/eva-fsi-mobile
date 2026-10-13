@@ -1,4 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -11,6 +17,7 @@ import {
   Alert,
   ActivityIndicator,
   Keyboard,
+  PanResponder,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -30,7 +37,13 @@ import { ChatMessage, Beneficiary } from "../../types";
 import ChatBubble from "../../components/chat/ChatBubble";
 import TypingIndicator from "../../components/chat/TypingIndicator";
 import SuggestedPrompts from "../../components/chat/SuggestedPrompts";
+import VoiceStatusBar from "../../components/chat/VoiceStatusBar";
 import { sendChatMessage, LlmActionPayload } from "../../services/fsiApi";
+import { transcribeAudio } from "../../services/sttApi";
+import { useVoiceNote, VoiceNoteRecording } from "../../hooks/useVoiceNote";
+
+// Sliding the finger this far left while recording cancels it (WhatsApp-style)
+const SLIDE_TO_CANCEL_PX = 80;
 
 function searchBeneficiaries(
   beneficiaries: Beneficiary[],
@@ -85,6 +98,19 @@ function extractTransferBankName(
   );
 }
 
+function formatPayBillIntent(actionPayload: LlmActionPayload): string {
+  const data = actionPayload.data;
+  const billerName =
+    (data.biller_name as string) ?? (data.biller_code as string) ?? "tagihan";
+  const amount = data.amount;
+  const billId = data.bill_id as string | undefined;
+  const amountStr = amount
+    ? ` sebesar Rp ${Number(amount).toLocaleString("id-ID")}`
+    : "";
+  const billIdStr = billId ? ` (ID: ${billId})` : "";
+  return `Bayar ${billerName}${amountStr}${billIdStr}`;
+}
+
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
@@ -93,6 +119,20 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const router = useRouter();
+  // sendVoiceNote is defined further down; the hook reaches it through a ref
+  const sendVoiceNoteRef = useRef<(recording: VoiceNoteRecording) => void>(
+    () => {},
+  );
+  const {
+    status: voiceStatus,
+    durationMillis: voiceDurationMillis,
+    metering: voiceMetering,
+    notice: voiceNotice,
+    pressIn: voicePressIn,
+    pressOut: voicePressOut,
+  } = useVoiceNote((recording) => sendVoiceNoteRef.current(recording));
+  const isRecording = voiceStatus === "recording";
+  const [willCancelVoice, setWillCancelVoice] = useState(false);
 
   // Track keyboard show/hide
   useEffect(() => {
@@ -121,6 +161,7 @@ export default function ChatScreen() {
     isLoading,
     sessionId,
     addMessage,
+    updateMessage,
     setLoading,
     clearChat,
     pendingSelection,
@@ -202,11 +243,9 @@ export default function ChatScreen() {
     [pendingSelection, addSelectionResultMessage, router],
   );
 
-  const sendChat = useCallback(
+  /** Sends text to the AI and renders its reply (user message already shown). */
+  const requestReply = useCallback(
     async (messageText: string) => {
-      if (isLoading) return;
-
-      addMessage({ role: "user", content: messageText });
       setLoading(true);
       try {
         const result = await sendChatMessage(messageText, sessionId);
@@ -284,11 +323,22 @@ export default function ChatScreen() {
               desc: desc ? String(desc) : "",
             },
           });
-        } else {
-          // No transfer intent — just add the normal reply
+        } else if (result.actionPayload?.action === "pay_bill") {
           addMessage({
             role: "assistant",
-            content: result.reply,
+            content: formatPayBillIntent(result.actionPayload),
+            toolsUsed: result.toolsUsed,
+          });
+        } else {
+          // No transfer intent — just add the normal reply. Unhandled actions
+          // come back with an empty reply, so never render a blank bubble.
+          addMessage({
+            role: "assistant",
+            content:
+              result.reply ||
+              (result.actionPayload
+                ? `Aksi "${result.actionPayload.action}" belum didukung di aplikasi.`
+                : ""),
             toolsUsed: result.toolsUsed,
           });
         }
@@ -303,13 +353,22 @@ export default function ChatScreen() {
       }
     },
     [
-      isLoading,
       sessionId,
       addMessage,
       setLoading,
       beneficiaries,
       addBeneficiarySelectionMessage,
     ],
+  );
+
+  const sendChat = useCallback(
+    async (messageText: string) => {
+      if (isLoading) return;
+
+      addMessage({ role: "user", content: messageText });
+      await requestReply(messageText);
+    },
+    [isLoading, addMessage, requestReply],
   );
 
   const sendMessage = useCallback(() => {
@@ -320,6 +379,89 @@ export default function ChatScreen() {
     setInputText("");
     sendChat(messageText);
   }, [inputText, sendChat]);
+
+  /**
+   * Sends a voice note as soon as the mic is released: shows it in the chat
+   * right away, then
+   * transcribes it and sends the transcript to the AI (the chat API is
+   * text-only).
+   */
+  const sendVoiceNote = useCallback(
+    async ({ uri, durationMs }: VoiceNoteRecording) => {
+      if (isLoading) return;
+
+      const messageId = addMessage({
+        role: "user",
+        content: "",
+        audio: { uri, durationMs, transcription: "pending" },
+      });
+      setLoading(true);
+
+      let transcript = "";
+      try {
+        transcript = await transcribeAudio(uri);
+      } catch (error) {
+        console.warn("[STT] transcription failed:", error);
+      }
+
+      if (!transcript) {
+        updateMessage(messageId, {
+          audio: { uri, durationMs, transcription: "failed" },
+        });
+        setLoading(false);
+        return;
+      }
+
+      updateMessage(messageId, {
+        content: transcript,
+        audio: { uri, durationMs, transcription: "done" },
+      });
+      await requestReply(transcript);
+    },
+    [isLoading, addMessage, updateMessage, setLoading, requestReply],
+  );
+  sendVoiceNoteRef.current = sendVoiceNote;
+
+  const canSend = Boolean(inputText.trim()) && !isLoading;
+
+  // Hold-to-record gesture on the mic button. The responder is created once,
+  // so it reads the latest callbacks through a ref.
+  const voiceGestureRef = useRef({ voicePressIn, voicePressOut });
+  voiceGestureRef.current = { voicePressIn, voicePressOut };
+  const willCancelRef = useRef(false);
+  const micResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        // Keep the gesture even if the finger drifts over the list
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          willCancelRef.current = false;
+          setWillCancelVoice(false);
+          voiceGestureRef.current.voicePressIn();
+        },
+        onPanResponderMove: (_, { dx }) => {
+          const cancel = dx < -SLIDE_TO_CANCEL_PX;
+          if (cancel !== willCancelRef.current) {
+            willCancelRef.current = cancel;
+            setWillCancelVoice(cancel);
+            Haptics.selectionAsync();
+          }
+        },
+        onPanResponderRelease: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          voiceGestureRef.current.voicePressOut(!willCancelRef.current);
+          setWillCancelVoice(false);
+        },
+        onPanResponderTerminate: () => {
+          voiceGestureRef.current.voicePressOut(false);
+          setWillCancelVoice(false);
+        },
+      }),
+    [],
+  );
 
   const handleCancelTransaction = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -618,48 +760,78 @@ export default function ChatScreen() {
               </LinearGradient>
             </Pressable>
           ) : (
-            <View style={styles.inputRow}>
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
-                value={inputText}
-                onChangeText={setInputText}
-                placeholder="Tanya EVA apa saja..."
-                placeholderTextColor={Colors.textMuted}
-                multiline
-                maxLength={500}
-                onSubmitEditing={() => sendMessage()}
-                returnKeyType="send"
-                blurOnSubmit={false}
+            <>
+              <VoiceStatusBar
+                status={voiceStatus}
+                durationMillis={voiceDurationMillis}
+                metering={voiceMetering}
+                notice={voiceNotice}
+                willCancel={willCancelVoice}
               />
-              <Pressable
-                onPress={() => sendMessage()}
-                disabled={!inputText.trim() || isLoading}
-                style={({ pressed }) => [
-                  styles.sendBtn,
-                  pressed && styles.sendBtnPressed,
-                ]}
-              >
-                <LinearGradient
-                  colors={
-                    inputText.trim() && !isLoading
-                      ? [Colors.accentPurple, Colors.accentPurpleDark]
-                      : [Colors.border, Colors.border]
+              <View style={styles.inputRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  placeholder={
+                    isRecording ? "Merekam..." : "Tanya EVA apa saja..."
                   }
-                  style={styles.sendGradient}
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  maxLength={500}
+                  onSubmitEditing={() => sendMessage()}
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                  editable={!isRecording}
+                />
+                <View
+                  {...(isLoading ? {} : micResponder.panHandlers)}
+                  style={[
+                    styles.micBtn,
+                    isRecording && styles.micBtnActive,
+                    isLoading && styles.inputActionDisabled,
+                  ]}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                  {voiceStatus === "starting" ? (
+                    <ActivityIndicator size="small" color={Colors.textMuted} />
                   ) : (
                     <Ionicons
-                      name="send"
-                      size={16}
-                      color={inputText.trim() ? "#fff" : Colors.textMuted}
+                      name={isRecording ? "mic" : "mic-outline"}
+                      size={18}
+                      color={isRecording ? "#fff" : Colors.textMuted}
                     />
                   )}
-                </LinearGradient>
-              </Pressable>
-            </View>
+                </View>
+                <Pressable
+                  onPress={() => sendMessage()}
+                  disabled={!canSend}
+                  style={({ pressed }) => [
+                    styles.sendBtn,
+                    pressed && styles.sendBtnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={
+                      canSend
+                        ? [Colors.accentPurple, Colors.accentPurpleDark]
+                        : [Colors.border, Colors.border]
+                    }
+                    style={styles.sendGradient}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons
+                        name="send"
+                        size={16}
+                        color={canSend ? "#fff" : Colors.textMuted}
+                      />
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </>
           )}
         </Animated.View>
       </KeyboardAvoidingView>
@@ -898,6 +1070,17 @@ const styles = StyleSheet.create({
   sendBtn: {
     borderRadius: 999,
     overflow: "hidden",
+  },
+  micBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micBtnActive: {
+    backgroundColor: Colors.accentRose,
+    transform: [{ scale: 1.3 }],
   },
   sendBtnPressed: {
     opacity: 0.8,

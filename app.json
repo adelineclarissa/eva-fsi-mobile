@@ -23,7 +23,13 @@
       "expo-router",
       "expo-font",
       "expo-splash-screen",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "EVA membutuhkan akses mikrofon untuk voice typing."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

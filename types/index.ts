@@ -56,6 +56,13 @@ export interface ActionPayload {
   data: BeneficiarySelectionData;
 }
 
+export interface VoiceNoteAttachment {
+  uri: string;
+  durationMs: number;
+  /** Speech-to-text progress; the transcript is stored in `content` */
+  transcription: "pending" | "done" | "failed";
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -65,6 +72,7 @@ export interface ChatMessage {
   isStreaming?: boolean;
   actionPayload?: ActionPayload;
   selectionResult?: BeneficiarySelectionResult;
+  audio?: VoiceNoteAttachment;
 }
 
 export interface TransferPayload {

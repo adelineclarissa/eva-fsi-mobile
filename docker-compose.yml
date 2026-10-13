@@ -1,13 +1,17 @@
 services:
   expo-dev:
-    build: .
-    container_name: eva-expo-dev
+    image: node:24
+    container_name: eva-fsi-mobile
+    init: true
     network_mode: host      # Use host network so QR code shows local IP
+    user: "${UID:-1010}:${GID:-1010}"   # Match host user so files stay owned by you
+    working_dir: /app
     volumes:
-      - .:/app              # Mount source code for live reload
-      - /app/node_modules   # Anonymous volume to prevent overriding host's node_modules
+      - .:/app              # Mount source code (incl. node_modules) for live reload
     environment:
-      - NODE_ENV=development
-    restart: unless-stopped
+      - HOME=/tmp
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${REACT_NATIVE_PACKAGER_HOSTNAME:-192.168.1.10}
+    # Idle container; start Expo with `docker compose exec`
+    command: tail -f /dev/null
     stdin_open: true
     tty: true

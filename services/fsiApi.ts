@@ -188,3 +188,35 @@ export async function reportTransaction(
 
   return postChat("reportTransaction", payload);
 }
+
+export interface BillPaymentReportPayload {
+  event: "bill_paid" | "bill_cancelled";
+  billerName: string;
+  billId?: string;
+  amount?: number;
+}
+
+export async function reportBillPayment(
+  conversationId: string,
+  report: BillPaymentReportPayload,
+): Promise<ChatApiResponse> {
+  const billIdStr = report.billId ? ` (ID tagihan ${report.billId})` : "";
+  let message = "";
+
+  if (report.event === "bill_paid") {
+    const amountStr = report.amount
+      ? `IDR ${report.amount.toLocaleString("id-ID")}`
+      : "sejumlah tertentu";
+    message = `Saya berhasil membayar tagihan ${report.billerName}${billIdStr} sebesar ${amountStr}. Tolong konfirmasi dan beri tahu pengguna bahwa pembayaran tagihan telah selesai. Ada lagi yang bisa saya bantu?`;
+  } else {
+    message = `Saya membatalkan pembayaran tagihan ${report.billerName}${billIdStr}. Tolong beri tahu pengguna bahwa pembayaran tagihan telah dibatalkan. Ada lagi yang bisa saya bantu?`;
+  }
+
+  const payload = {
+    message,
+    conversation_id: conversationId,
+    user_id: FSI_USER_ID,
+  };
+
+  return postChat("reportBillPayment", payload);
+}
