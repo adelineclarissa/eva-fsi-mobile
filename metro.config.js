@@ -19,7 +19,7 @@ config.watchFolders = [
 
 // Transform exclude to skip problematic .xcframework and .dSYM paths
 config.resolver = config.resolver || {};
-config.resolver.blacklistRE = [
+config.resolver.blockList = [
   /node_modules\.\/\.expo-camera-.+\/prebuilds\/spm-deps\/.*/,
   /node_modules\/.*\.xcframework\/.*/,
   /node_modules\/.*\.dSYM\/.*/,

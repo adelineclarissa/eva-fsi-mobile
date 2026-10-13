@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { CameraView, useCameraPermissions, Camera } from "expo-camera";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -89,7 +89,7 @@ export default function ScanQrisScreen() {
   const [showInbox, setShowInbox] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
   const [showShowQr, setShowShowQr] = useState(false);
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
     if (permissionResponse?.status !== "granted") {
@@ -237,7 +237,7 @@ export default function ScanQrisScreen() {
             style={styles.camera}
             facing="back"
             onBarcodeScanned={handleBarcodeScanned}
-            torchMode={showFlash ? "on" : "off"}
+            enableTorch={showFlash}
           >
             {/* Scanner Overlay */}
             <View style={styles.overlay}>
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   overlayTop: {
     flex: 1,

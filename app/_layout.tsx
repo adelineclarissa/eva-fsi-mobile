@@ -21,7 +21,7 @@ export default function RootLayout() {
       style={{ flex: 1, backgroundColor: Colors.background }}
     >
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={Colors.background} />
+        <StatusBar style="dark" />
         <Animated.View entering={FadeIn.duration(300)} style={{ flex: 1 }}>
           <Stack
             screenOptions={{

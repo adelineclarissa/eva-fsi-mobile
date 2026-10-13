@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
 import * as Haptics from "expo-haptics";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "expo-router/tabs";
 
 const TAB_CONFIG = [
   { name: "index", icon: "home-outline", activeIcon: "home", label: "Beranda" },
