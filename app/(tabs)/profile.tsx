@@ -111,14 +111,6 @@ export default function ProfileScreen() {
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{displayName}</Text>
                 <Text style={styles.profileEmail}>{displayEmail}</Text>
-                <View style={styles.tierBadge}>
-                  <Ionicons
-                    name="diamond"
-                    size={11}
-                    color={Colors.accentGold}
-                  />
-                  <Text style={styles.tierText}>{tierLabel}</Text>
-                </View>
               </View>
               <Pressable style={styles.editBtn}>
                 <Ionicons
@@ -261,13 +253,6 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1, gap: 3 },
   profileName: { fontSize: 18, fontWeight: "700", color: "#fff" },
   profileEmail: { fontSize: 13, color: "rgba(255,255,255,0.65)" },
-  tierBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  tierText: { fontSize: 11, color: Colors.accentGold, fontWeight: "600" },
   editBtn: {
     width: 36,
     height: 36,
@@ -297,15 +282,14 @@ const styles = StyleSheet.create({
   securityScore: { flexDirection: "row", alignItems: "flex-end", gap: 1 },
   scoreText: { fontSize: 28, fontWeight: "800", color: Colors.success },
   scoreMax: { fontSize: 14, color: Colors.textMuted, marginBottom: 3 },
+  // Fixed 3-column grid: equal-width cells keep icons and labels aligned
   menuGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    rowGap: 4,
   },
   menuGridItem: {
-    width: "22%",
-    flex: 1,
-    minWidth: 70,
+    width: "33.333%",
     alignItems: "center",
     gap: 8,
     paddingVertical: 12,
@@ -326,6 +310,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
     lineHeight: 15,
+    // Reserve two lines so every cell in a row has the same height
+    minHeight: 30,
   },
   signOutBtn: {
     flexDirection: "row",

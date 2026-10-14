@@ -193,13 +193,15 @@ export default function ChatBubble({
           <Text style={styles.assistantName}>EVA</Text>
         )}
 
-        {/* Message bubble */}
-        <View style={styles.assistantBubble}>
-          <Markdown style={markdownStyles}>{message.content}</Markdown>
-          <Text style={styles.assistantTimestamp}>
-            {formatTime(message.timestamp)}
-          </Text>
-        </View>
+        {/* Message bubble — skipped for selection cards with no caption */}
+        {message.content ? (
+          <View style={styles.assistantBubble}>
+            <Markdown style={markdownStyles}>{message.content}</Markdown>
+            <Text style={styles.assistantTimestamp}>
+              {formatTime(message.timestamp)}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Beneficiary selector — hidden after selection */}
         {hasBeneficiaryAction && actionData && !selectionDisabled && (

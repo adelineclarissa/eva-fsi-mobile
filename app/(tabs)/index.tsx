@@ -109,10 +109,6 @@ export default function HomeScreen() {
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>{getSapa()}</Text>
           <Text style={styles.userName}>{displayName}</Text>
-          <View style={styles.rewardsBadge}>
-            <Ionicons name="star" size={11} color={Colors.accentGold} />
-            <Text style={styles.rewardsBadgeText}>EVA Poin</Text>
-          </View>
         </View>
         <View style={styles.headerRight}>
           <View style={styles.onlineDot} />
@@ -208,24 +204,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontWeight: "800",
     letterSpacing: 0.3,
-  },
-  rewardsBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(245,158,11,0.1)",
-    borderColor: "rgba(245,158,11,0.25)",
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-    marginTop: 6,
-  },
-  rewardsBadgeText: {
-    fontSize: 11,
-    color: Colors.accentGold,
-    fontWeight: "600",
   },
   headerRight: {
     flexDirection: "row",

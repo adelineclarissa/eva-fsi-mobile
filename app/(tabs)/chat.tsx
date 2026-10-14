@@ -12,7 +12,6 @@ import {
   TextInput,
   Pressable,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
@@ -23,8 +22,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   FadeIn,
   FadeInDown,
-  SlideInUp,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
 } from "react-native-reanimated";
+import { useBottomTabBarHeight } from "expo-router/tabs";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -114,7 +115,6 @@ function formatPayBillIntent(actionPayload: LlmActionPayload): string {
 export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const suggestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -134,26 +134,27 @@ export default function ChatScreen() {
   const isRecording = voiceStatus === "recording";
   const [willCancelVoice, setWillCancelVoice] = useState(false);
 
-  // Track keyboard show/hide
+  // Follow the keyboard frame-by-frame (including interactive drag-to-dismiss)
+  // so the input bar moves together with the keyboard. The keyboard also
+  // covers the tab bar, so only the part above it needs to be avoided.
+  const keyboard = useAnimatedKeyboard();
+  const tabBarHeight = useBottomTabBarHeight();
+  const keyboardAvoidStyle = useAnimatedStyle(() => ({
+    paddingBottom: Math.max(0, keyboard.height.value - tabBarHeight),
+  }));
+
+  // Scroll to bottom when the keyboard opens
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
+      () => {
         // Scroll to bottom after keyboard animation starts
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       },
     );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardHeight(0),
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    return () => showSub.remove();
   }, []);
 
   const {
@@ -259,7 +260,16 @@ export default function ChatScreen() {
         );
         const bankName = extractTransferBankName(result.actionPayload);
 
+        // When the LLM wraps the action JSON in prose, show that sentence as
+        // its own bubble before the action-specific bubbles below.
+        const addLeadIn = () => {
+          if (result.reply) {
+            addMessage({ role: "assistant", content: result.reply });
+          }
+        };
+
         if (beneficiaryName) {
+          addLeadIn();
           // Search beneficiaries first
           const matches = searchBeneficiaries(beneficiaries, beneficiaryName);
 
@@ -267,12 +277,9 @@ export default function ChatScreen() {
             // Found matches — show intent confirmation + selection UI
             const amount = result.actionPayload?.data.amount;
             const desc = result.actionPayload?.data.desc;
-            const intentText = amount
-              ? `Transfer Rp ${Number(amount).toLocaleString("id-ID")} ke ${beneficiaryName}${desc ? ` (${desc})` : ""}`
-              : `Transfer ke ${beneficiaryName}`;
             addMessage({
               role: "assistant",
-              content: intentText,
+              content: "Ketuk penerima untuk melanjutkan transaksi",
               toolsUsed: result.toolsUsed,
             });
 
@@ -301,6 +308,7 @@ export default function ChatScreen() {
           }
         } else if (accountNumber && beneficiaryName) {
           // Transfer with account number (not in beneficiary list) — navigate directly
+          addLeadIn();
           const amount = result.actionPayload?.data.amount;
           const desc = result.actionPayload?.data.desc;
           const intentText = amount
@@ -324,6 +332,7 @@ export default function ChatScreen() {
             },
           });
         } else if (result.actionPayload?.action === "pay_bill") {
+          addLeadIn();
           addMessage({
             role: "assistant",
             content: formatPayBillIntent(result.actionPayload),
@@ -708,11 +717,7 @@ export default function ChatScreen() {
         </Pressable>
       </Animated.View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
+      <Animated.View style={[styles.flex, keyboardAvoidStyle]}>
         {/* Messages - takes remaining space */}
         <View style={{ flex: 1 }}>
           <FlatList
@@ -722,16 +727,12 @@ export default function ChatScreen() {
             keyExtractor={(item) => item.id}
             ListHeaderComponent={renderHeader}
             ListFooterComponent={renderFooter}
-            contentContainerStyle={[
-              styles.messageList,
-              {
-                paddingBottom:
-                  Platform.OS === "android" ? keyboardHeight + 16 : 16,
-              },
-            ]}
+            contentContainerStyle={[styles.messageList, { paddingBottom: 16 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
+            keyboardDismissMode={
+              Platform.OS === "ios" ? "interactive" : "on-drag"
+            }
             onContentSizeChange={() =>
               flatListRef.current?.scrollToEnd({ animated: true })
             }
@@ -739,10 +740,10 @@ export default function ChatScreen() {
         </View>
 
         {/* Input area - stays fixed at bottom */}
-        <Animated.View
-          entering={SlideInUp.springify()}
-          style={styles.inputContainer}
-        >
+        {/* Opacity-only entrance: a position-based layout animation (e.g.
+            SlideInUp) can get stuck at a stale offset when the parent's
+            keyboard padding changes mid-animation, hiding the bar. */}
+        <Animated.View entering={FadeIn} style={styles.inputContainer}>
           {pendingSelection ? (
             <Pressable
               onPress={handleCancelTransaction}
@@ -834,7 +835,7 @@ export default function ChatScreen() {
             </>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </SafeAreaView>
   );
 }

@@ -1,11 +1,14 @@
-import React from "react";
+import React, { use } from "react";
 import { Tabs, useRouter } from "expo-router";
 import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
 import * as Haptics from "expo-haptics";
-import type { BottomTabBarProps } from "expo-router/tabs";
+import {
+  BottomTabBarHeightCallbackContext,
+  type BottomTabBarProps,
+} from "expo-router/tabs";
 
 const TAB_CONFIG = [
   { name: "index", icon: "home-outline", activeIcon: "home", label: "Beranda" },
@@ -32,9 +35,15 @@ const TAB_CONFIG = [
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
+  // Report the real height so screens using useBottomTabBarHeight() (e.g. the
+  // chat keyboard handling) don't fall back to the default tab bar estimate.
+  const onHeightChange = use(BottomTabBarHeightCallbackContext);
 
   return (
-    <View style={styles.tabBar}>
+    <View
+      style={styles.tabBar}
+      onLayout={(e) => onHeightChange?.(e.nativeEvent.layout.height)}
+    >
       {TAB_CONFIG.map((tab, i) => {
         if (tab === null) {
           return (

@@ -166,9 +166,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           id,
           role: "assistant" as const,
           content:
-            data.matches.length === 1
-              ? "Did you mean:"
-              : `Who would you like to transfer to?`,
+            data.matches.length === 1 ? "" : "Mau transfer ke siapa?",
           timestamp: new Date().toISOString(),
           actionPayload: {
             type: "beneficiary_selection",

@@ -35,10 +35,9 @@ export interface ChatApiResponse {
   timestamp: string;
 }
 
-function tryParseActionPayload(text: string): LlmActionPayload | null {
-  if (!text) return null;
+function toActionPayload(candidate: string): LlmActionPayload | null {
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(candidate);
     if (parsed && typeof parsed === "object" && parsed.action && parsed.data) {
       return {
         action: String(parsed.action),
@@ -47,6 +46,52 @@ function tryParseActionPayload(text: string): LlmActionPayload | null {
     }
   } catch {
     // Not JSON — fall through
+  }
+  return null;
+}
+
+/** Returns the end index (inclusive) of the balanced `{...}` starting at `start`. */
+function findObjectEnd(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// The LLM sometimes wraps the action JSON in prose or a ```json fence
+// (e.g. "I'll help you transfer 20rb to Maya. {...}"), so look for an
+// embedded object instead of requiring the whole message to be JSON.
+// Returns the payload plus the surrounding prose with the JSON removed.
+function tryParseActionPayload(
+  text: string,
+): { payload: LlmActionPayload; prose: string } | null {
+  if (!text) return null;
+  const whole = toActionPayload(text.trim());
+  if (whole) return { payload: whole, prose: "" };
+
+  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
+    const end = findObjectEnd(text, start);
+    if (end === -1) break;
+    const payload = toActionPayload(text.slice(start, end + 1));
+    if (payload) {
+      const prose = (text.slice(0, start) + text.slice(end + 1))
+        .replace(/```(?:json)?\s*```/gi, "")
+        .trim();
+      return { payload, prose };
+    }
   }
   return null;
 }
@@ -125,13 +170,14 @@ async function postChat(
   const rawMessage = data.message || "";
 
   // Try parsing the message as a structured action payload
-  const actionPayload = tryParseActionPayload(rawMessage);
+  const parsedAction = tryParseActionPayload(rawMessage);
+  const actionPayload = parsedAction?.payload ?? null;
   if (actionPayload) {
     console.log(`[FSI] ${label} action payload:`, actionPayload);
   }
 
-  // If the message is a pure JSON action payload, use a fallback reply
-  const reply = actionPayload ? "" : rawMessage;
+  // Keep any prose the LLM wrote around the action JSON (empty for pure JSON)
+  const reply = parsedAction ? parsedAction.prose : rawMessage;
 
   return {
     reply,
