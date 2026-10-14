@@ -12,7 +12,7 @@ import {
   Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -82,13 +82,14 @@ const formatTime = (timestamp: string) => {
 
 export default function ScanQrisScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [permissionResponse, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [lastResult, setLastResult] = useState<ScannedResult | null>(null);
   const [showInbox, setShowInbox] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
-  const [showShowQr, setShowShowQr] = useState(false);
+  const [showShowQr, setShowShowQr] = useState(mode === "show");
   const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
@@ -158,7 +159,10 @@ export default function ScanQrisScreen() {
     Haptics.selectionAsync();
   }, []);
 
-  if (hasPermission === null || permissionResponse?.status !== "granted") {
+  if (
+    !showShowQr &&
+    (hasPermission === null || permissionResponse?.status !== "granted")
+  ) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>

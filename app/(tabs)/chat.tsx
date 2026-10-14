@@ -43,6 +43,17 @@ import { sendChatMessage, LlmActionPayload } from "../../services/fsiApi";
 import { transcribeAudio } from "../../services/sttApi";
 import { useVoiceNote, VoiceNoteRecording } from "../../hooks/useVoiceNote";
 
+const NAVIGABLE_PAGES = {
+  home: "/(tabs)",
+  index: "/(tabs)",
+  cards: "/(tabs)/cards",
+  chat: "/(tabs)/chat",
+  profile: "/(tabs)/profile",
+  transfer: "/transfer",
+  "pay-bill": "/pay-bill",
+  "scan-qris": "/scan-qris",
+} as const;
+
 // Sliding the finger this far left while recording cancels it (WhatsApp-style)
 const SLIDE_TO_CANCEL_PX = 80;
 
@@ -350,6 +361,38 @@ export default function ChatScreen() {
               fromChat: "1",
             },
           });
+        } else if (result.actionPayload?.action === "navigate") {
+          addLeadIn();
+          const { page, params } = result.actionPayload.data;
+          const pathname =
+            typeof page === "string" &&
+            Object.prototype.hasOwnProperty.call(NAVIGABLE_PAGES, page)
+              ? NAVIGABLE_PAGES[page as keyof typeof NAVIGABLE_PAGES]
+              : null;
+
+          if (pathname) {
+            const routeParams = Object.fromEntries(
+              Object.entries(
+                params && typeof params === "object" && !Array.isArray(params)
+                  ? params
+                  : {},
+              )
+                .filter(
+                  ([, value]) =>
+                    typeof value === "string" ||
+                    typeof value === "number" ||
+                    typeof value === "boolean",
+                )
+                .map(([key, value]) => [key, String(value)]),
+            );
+            router.push({ pathname, params: routeParams });
+          } else {
+            addMessage({
+              role: "assistant",
+              content: `Halaman "${String(page ?? "")}" belum didukung di aplikasi.`,
+              toolsUsed: result.toolsUsed,
+            });
+          }
         } else {
           // No transfer intent — just add the normal reply. Unhandled actions
           // come back with an empty reply, so never render a blank bubble.
