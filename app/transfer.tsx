@@ -13,16 +13,11 @@ import {
   Pressable,
   ScrollView,
   Alert,
-  Share,
-  Modal,
-  ActivityIndicator,
   Keyboard,
 } from "react-native";
-import { captureRef } from "react-native-view-shot";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -33,6 +28,13 @@ import { useChatStore } from "../store/chatStore";
 import { Beneficiary } from "../types";
 import { formatCurrency } from "../utils/formatters";
 import { reportTransaction } from "../services/fsiApi";
+import PinEntryStep from "../components/transaction/PinEntryStep";
+import ProcessingOverlay from "../components/transaction/ProcessingOverlay";
+import TransactionReceipt, {
+  formatReceiptDate,
+} from "../components/transaction/TransactionReceipt";
+import ConfirmCard from "../components/transaction/ConfirmCard";
+import SourceOfFundCard from "../components/transaction/SourceOfFundCard";
 
 const formatAmount = (value: string) => {
   const digits = value.replace(/\D/g, "");
@@ -55,71 +57,6 @@ const STEP_TITLES: Record<Step, string> = {
 
 const DEFAULT_PIN = "";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PIN_INPUT_WIDTH = Math.min(SCREEN_WIDTH - 48, 360);
-
-function PinEntryStep({
-  pin,
-  setPin,
-  isLoading,
-  onConfirm,
-}: {
-  pin: string;
-  setPin: (p: string | ((prev: string) => string)) => void;
-  isLoading: boolean;
-  onConfirm: () => void;
-}) {
-  const inputRef = React.useRef<TextInput>(null);
-
-  React.useEffect(() => {
-    if (pin.length === 6 && !isLoading) {
-      onConfirm();
-    }
-  }, [pin, isLoading, onConfirm]);
-
-  return (
-    <Pressable
-      style={styles.pinContainer}
-      onPress={() => inputRef.current?.focus()}
-    >
-      <View style={styles.pinCard}>
-        <View style={styles.pinHeader}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={32}
-            color={Colors.primary}
-          />
-          <Text style={styles.pinTitle}>PIN Transaksi</Text>
-          <Text style={styles.pinSubtitle}>Silakan masukkan PIN Anda</Text>
-        </View>
-
-        <View style={styles.pinDotsRow}>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.pinDot,
-                i < pin.length ? styles.pinDotFilled : styles.pinDotEmpty,
-              ]}
-            />
-          ))}
-        </View>
-
-        <TextInput
-          ref={inputRef}
-          value={pin}
-          onChangeText={(text) => setPin(text.replace(/\D/g, "").slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          secureTextEntry
-          autoFocus
-          style={styles.pinHiddenInput}
-        />
-      </View>
-    </Pressable>
-  );
-}
-
 export default function TransferScreen() {
   const router = useRouter();
   const searchParams = useLocalSearchParams();
@@ -133,7 +70,6 @@ export default function TransferScreen() {
     "checking",
   );
   const [sourceAccountId, setSourceAccountId] = useState<string | null>(null);
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [transactionType, setTransactionType] = useState<
     "immediate" | "scheduled" | "recurring"
   >("immediate");
@@ -142,7 +78,6 @@ export default function TransferScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [transactionId, setTransactionId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
-  const receiptRef = useRef<View>(null);
   const initializedRef = useRef(false);
 
   const beneficiaryId =
@@ -346,26 +281,6 @@ export default function TransferScreen() {
     addMessage,
   ]);
 
-  const handleDownload = useCallback(async () => {
-    try {
-      // Loaded lazily: expo-media-library throws on import under web
-      const MediaLibrary: typeof import("expo-media-library") = require("expo-media-library");
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Izin diperlukan",
-          "Izinkan akses galeri untuk menyimpan bukti transfer.",
-        );
-        return;
-      }
-      const uri = await captureRef(receiptRef, { format: "png", quality: 1 });
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert("Tersimpan!", "Bukti transfer berhasil disimpan ke galeri.");
-    } catch {
-      Alert.alert("Gagal", "Tidak dapat menyimpan bukti transfer.");
-    }
-  }, []);
-
   const handleConfirm = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPin(DEFAULT_PIN);
@@ -445,17 +360,6 @@ export default function TransferScreen() {
     note,
   ]);
 
-  const handleShareReceipt = async () => {
-    try {
-      await Share.share({
-        message: receiptText,
-        title: "Bukti Transfer",
-      });
-    } catch (error) {
-      // User cancelled share
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       {step === "amount" ? (
@@ -511,138 +415,38 @@ export default function TransferScreen() {
           onConfirm={handlePinConfirm}
         />
       ) : step === "success" ? (
-        <View style={styles.receiptOuter}>
-          <ScrollView
-            style={styles.receiptScroll}
-            contentContainerStyle={styles.receiptScrollContent}
-          >
-            <View ref={receiptRef} style={styles.receiptCard}>
-              <View style={styles.receiptCheckCircle}>
-                <Ionicons name="checkmark" size={36} color="#fff" />
-              </View>
-
-              <Text style={styles.receiptTitle}>Transfer Berhasil</Text>
-              <Text style={styles.receiptDateTime}>
-                {transactionDate
-                  ? new Date(transactionDate).toLocaleDateString("id-ID", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    }) +
-                    " " +
-                    new Date(transactionDate).toLocaleTimeString("id-ID", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })
-                  : ""}
-              </Text>
-
-              <Text style={styles.receiptAmount}>
-                {formatCurrency(parseAmount(amount))}
-              </Text>
-
-              <View style={styles.receiptDivider} />
-
-              {[
-                { label: "ID Transaksi", value: transactionId },
-                {
-                  label: "Tanggal",
-                  value: transactionDate
-                    ? new Date(transactionDate).toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      }) +
-                      " " +
-                      new Date(transactionDate).toLocaleTimeString("id-ID", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "-",
-                },
-                { label: "Nama Penerima", value: selected?.name ?? "-" },
-                {
-                  label: "Rekening Penerima",
-                  value: selected?.accountNumber ?? "-",
-                },
-                { label: "Bank Penerima", value: selected?.bankName || "-" },
-                {
-                  label: "Jumlah Transfer",
-                  value: formatCurrency(parseAmount(amount)),
-                },
-                { label: "Biaya Transfer", value: "Gratis", green: true },
-                {
-                  label: "Rekening Pengirim",
-                  value: sourceAccount?.accountNumber ?? "-",
-                },
-              ].map(({ label, value, green }, i, arr) => (
-                <View
-                  key={label}
-                  style={[
-                    styles.receiptRow,
-                    i < arr.length - 1 && styles.receiptRowBorder,
-                  ]}
-                >
-                  <Text style={styles.receiptRowLabel}>{label}</Text>
-                  <Text
-                    style={[
-                      styles.receiptRowValue,
-                      green ? { color: Colors.success } : null,
-                    ]}
-                  >
-                    {value}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-
-          <View style={styles.receiptActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.receiptIconWrapper,
-                { backgroundColor: pressed ? Colors.border : "transparent" },
-              ]}
-              onPress={handleShareReceipt}
-            >
-              <View style={styles.receiptIconBtn}>
-                <Ionicons
-                  name="share-social-outline"
-                  size={20}
-                  color={Colors.primary}
-                />
-              </View>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.receiptIconWrapper,
-                { backgroundColor: pressed ? Colors.border : "transparent" },
-              ]}
-              onPress={handleDownload}
-            >
-              <View style={styles.receiptIconBtn}>
-                <Ionicons
-                  name="download-outline"
-                  size={20}
-                  color={Colors.primary}
-                />
-              </View>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.receiptDoneWrapper,
-                { backgroundColor: pressed ? "#153d7a" : "transparent" },
-              ]}
-              onPress={() => router.back()}
-            >
-              <View style={styles.receiptDoneBtn}>
-                <Text style={styles.receiptDoneBtnText}>Selesai</Text>
-              </View>
-            </Pressable>
-          </View>
-        </View>
+        <TransactionReceipt
+          title="Transfer Berhasil"
+          date={transactionDate}
+          amount={parseAmount(amount)}
+          rows={[
+            { label: "ID Transaksi", value: transactionId },
+            {
+              label: "Tanggal",
+              value: transactionDate
+                ? formatReceiptDate(transactionDate, false)
+                : "-",
+            },
+            { label: "Nama Penerima", value: selected?.name ?? "-" },
+            {
+              label: "Rekening Penerima",
+              value: selected?.accountNumber ?? "-",
+            },
+            { label: "Bank Penerima", value: selected?.bankName || "-" },
+            {
+              label: "Jumlah Transfer",
+              value: formatCurrency(parseAmount(amount)),
+            },
+            { label: "Biaya Transfer", value: "Gratis", green: true },
+            {
+              label: "Rekening Pengirim",
+              value: sourceAccount?.accountNumber ?? "-",
+            },
+          ]}
+          shareText={receiptText}
+          receiptName="Bukti Transfer"
+          onDone={() => router.back()}
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -774,77 +578,14 @@ export default function TransferScreen() {
               </View>
 
               {/* Source of Fund */}
-              <View style={styles.fundCard}>
-                <View style={styles.fundCardHeader}>
-                  <View>
-                    <Text style={styles.fundCardLabel}>Source of Fund</Text>
-                    <Text style={styles.fundCardTitle}>
-                      {sourceAccount?.name ?? "Pilih rekening"}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => setShowAccountDropdown((prev) => !prev)}
-                    style={styles.chevronBtn}
-                  >
-                    <Ionicons
-                      name={showAccountDropdown ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color={Colors.primary}
-                    />
-                  </Pressable>
-                </View>
-                <Text style={styles.fundCardMeta}>
-                  {sourceAccount?.accountNumber ?? "-"} •{" "}
-                  {sourceAccount?.currency ?? "IDR"}
-                </Text>
-
-                {showAccountDropdown && otherAccounts.length > 0 && (
-                  <View style={styles.accountDropdown}>
-                    {otherAccounts.map((account) => (
-                      <Pressable
-                        key={account.id}
-                        style={({ pressed }) => [
-                          styles.accountDropdownItem,
-                          pressed && styles.accountDropdownItemPressed,
-                        ]}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setSourceAccountId(account.id);
-                          setFromAccount(account.type);
-                          setShowAccountDropdown(false);
-                        }}
-                      >
-                        <View style={styles.accountDropdownInner}>
-                          <View
-                            style={[
-                              styles.accountDropdownIcon,
-                              {
-                                backgroundColor:
-                                  account.color ?? Colors.primary,
-                              },
-                            ]}
-                          >
-                            <Ionicons name="card" size={18} color="#fff" />
-                          </View>
-                          <View style={styles.accountDropdownTextContainer}>
-                            <Text style={styles.accountDropdownName}>
-                              {account.name}
-                            </Text>
-                            <Text style={styles.accountDropdownNumber}>
-                              {account.accountNumber.replace(
-                                /(\d{3})(\d{3})(\d{4})/,
-                                "$1 - $2 - $3",
-                              )}
-                              {" • "}
-                              {account.currency}
-                            </Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
+              <SourceOfFundCard
+                sourceAccount={sourceAccount}
+                otherAccounts={otherAccounts}
+                onSelect={(account) => {
+                  setSourceAccountId(account.id);
+                  setFromAccount(account.type);
+                }}
+              />
 
               {/* Notes */}
               <TextInput
@@ -891,39 +632,23 @@ export default function TransferScreen() {
               entering={FadeInDown.springify()}
               style={styles.stepContainer}
             >
-              <View style={styles.confirmCard}>
-                <Text style={styles.confirmLabel}>Anda akan mengirim</Text>
-                <Text style={styles.confirmAmount}>
-                  {formatCurrency(parseAmount(amount))}
-                </Text>
-                <View style={styles.confirmDetails}>
-                  {[
-                    { label: "Kepada", value: selected?.name },
-                    { label: "Rekening", value: selected?.accountNumber },
-                    {
-                      label: "Dari",
-                      value:
-                        fromAccount === "checking"
-                          ? `Rek. Utama (${formatCurrency(sourceAccount?.balance ?? 0)})`
-                          : `Tabungan (${formatCurrency(sourceAccount?.balance ?? 0)})`,
-                    },
-                    { label: "Biaya", value: "Gratis" },
-                    { label: "Catatan", value: note || "Tidak ada" },
-                  ].map(({ label, value }) => (
-                    <View key={label} style={styles.confirmRow}>
-                      <Text style={styles.confirmRowLabel}>{label}</Text>
-                      <Text
-                        style={[
-                          styles.confirmRowValue,
-                          label === "Biaya" && { color: Colors.success },
-                        ]}
-                      >
-                        {value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
+              <ConfirmCard
+                label="Anda akan mengirim"
+                amount={parseAmount(amount)}
+                rows={[
+                  { label: "Kepada", value: selected?.name },
+                  { label: "Rekening", value: selected?.accountNumber },
+                  {
+                    label: "Dari",
+                    value:
+                      fromAccount === "checking"
+                        ? `Rek. Utama (${formatCurrency(sourceAccount?.balance ?? 0)})`
+                        : `Tabungan (${formatCurrency(sourceAccount?.balance ?? 0)})`,
+                  },
+                  { label: "Biaya", value: "Gratis", green: true },
+                  { label: "Catatan", value: note || "Tidak ada" },
+                ]}
+              />
 
               <Pressable
                 onPress={handleConfirm}
@@ -941,49 +666,13 @@ export default function TransferScreen() {
         </ScrollView>
       )}
 
-      {/* Processing overlay */}
-      <Modal
-        visible={isLoading}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-      >
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Memproses transaksi...</Text>
-          </View>
-        </View>
-      </Modal>
+      <ProcessingOverlay visible={isLoading} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1183,89 +872,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   balanceHint: { textAlign: "center", fontSize: 13, color: Colors.textMuted },
-  fundCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 14,
-    gap: 8,
-  },
-  fundCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  fundCardLabel: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  fundCardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Colors.textPrimary,
-    marginTop: 4,
-  },
-  fundCardMeta: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  chevronBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: Colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accountDropdown: {
-    gap: 10,
-    marginTop: 4,
-  },
-  accountDropdownItem: {
-    borderRadius: 18,
-  },
-  accountDropdownItemPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  accountDropdownInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.background,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 16,
-  },
-  accountDropdownIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  accountDropdownTextContainer: {
-    flex: 1,
-    flexDirection: "column",
-    justifyContent: "center",
-  },
-  accountDropdownName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
-  accountDropdownNumber: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
   transactionTypeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1335,36 +941,6 @@ const styles = StyleSheet.create({
   continueBtnTextDisabled: {
     color: "#fff",
   },
-  confirmCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 24,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 16,
-  },
-  confirmLabel: { fontSize: 13, color: Colors.textMuted, textAlign: "center" },
-  confirmAmount: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: Colors.textPrimary,
-    textAlign: "center",
-  },
-  confirmDetails: { gap: 12 },
-  confirmRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  confirmRowLabel: { fontSize: 14, color: Colors.textMuted },
-  confirmRowValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
   successContainer: {
     flex: 1,
     alignItems: "center",
@@ -1407,174 +983,4 @@ const styles = StyleSheet.create({
   },
   doneBtnGradient: { padding: 18, alignItems: "center" },
   doneBtnText: { fontSize: 17, fontWeight: "700", color: "#fff" },
-
-  // PIN styles — matches reference: white card top + gray keypad bottom
-  pinContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  pinCard: {
-    flex: 1.2,
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  pinHeader: {
-    alignItems: "center",
-    gap: 8,
-    marginTop: 16,
-  },
-  pinTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.primary,
-  },
-  pinSubtitle: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: "center",
-  },
-  pinDotsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 14,
-    marginTop: 24,
-  },
-  pinDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pinDotFilled: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary,
-  },
-  pinDotEmpty: {
-    borderColor: Colors.border,
-    backgroundColor: "transparent",
-  },
-  pinHiddenInput: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    opacity: 0,
-  },
-
-  // Receipt styles
-  receiptScroll: { flex: 1, backgroundColor: Colors.background },
-  receiptScrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
-  receiptCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 24,
-    alignItems: "center",
-  },
-  receiptCheckCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.accentTeal,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  receiptTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.primary,
-    marginBottom: 4,
-  },
-  receiptDateTime: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginBottom: 16,
-  },
-  receiptAmount: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: Colors.primary,
-    marginBottom: 20,
-  },
-  receiptDivider: {
-    width: "100%",
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
-    marginBottom: 4,
-  },
-  receiptRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    width: "100%",
-    paddingVertical: 12,
-  },
-  receiptRowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  receiptRowLabel: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    flex: 1,
-  },
-  receiptRowValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: "right",
-  },
-  receiptOuter: {
-    flex: 1,
-  },
-  receiptActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-  },
-  receiptIconWrapper: {
-    borderRadius: 24,
-    overflow: "hidden",
-  },
-  receiptIconBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
-  receiptDoneWrapper: {
-    flex: 1,
-    borderRadius: 30,
-    overflow: "hidden",
-  },
-  receiptDoneBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 70,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1A4FA0",
-  },
-  receiptDoneBtnText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#fff",
-  },
 });

@@ -333,10 +333,22 @@ export default function ChatScreen() {
           });
         } else if (result.actionPayload?.action === "pay_bill") {
           addLeadIn();
+          const data = result.actionPayload.data;
           addMessage({
             role: "assistant",
             content: formatPayBillIntent(result.actionPayload),
             toolsUsed: result.toolsUsed,
+          });
+
+          router.push({
+            pathname: "/pay-bill",
+            params: {
+              billId: data.bill_id ? String(data.bill_id) : "",
+              billerCode: data.biller_code ? String(data.biller_code) : "",
+              billerName: data.biller_name ? String(data.biller_name) : "",
+              amount: data.amount ? String(data.amount) : "",
+              fromChat: "1",
+            },
           });
         } else {
           // No transfer intent — just add the normal reply. Unhandled actions
@@ -367,6 +379,7 @@ export default function ChatScreen() {
       setLoading,
       beneficiaries,
       addBeneficiarySelectionMessage,
+      router,
     ],
   );
 

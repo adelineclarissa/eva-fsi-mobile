@@ -40,6 +40,14 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="pay-bill"
+              options={{
+                presentation: "modal",
+                animation: "slide_from_bottom",
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
               name="scan-qris"
               options={{
                 presentation: "modal",
